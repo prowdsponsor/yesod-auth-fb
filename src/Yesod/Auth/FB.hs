@@ -109,7 +109,7 @@ authFacebook creds manager perms = AuthPlugin "fb" dispatch login
 
 -- | Create an @yesod-auth@'s 'Creds' for a given
 -- @'FB.AccessToken' 'FB.User'@.
-createCreds :: FB.AccessToken FB.User -> Creds m
+createCreds :: FB.UserAccessToken -> Creds m
 createCreds (FB.UserAccessToken userId _ _) = Creds "fb" id_ []
     where id_ = "http://graph.facebook.com/" `mappend` TE.decodeUtf8 userId
 
@@ -118,7 +118,7 @@ createCreds (FB.UserAccessToken userId _ _) = Creds "fb" id_ []
 -- Usually you don't need to call this function, but it may
 -- become handy together with 'FB.extendUserAccessToken'.
 setUserAccessToken :: MonadIO m =>
-                      FB.AccessToken FB.User
+                      FB.UserAccessToken
                    -> GGHandler sub master m ()
 setUserAccessToken (FB.UserAccessToken userId data_ exptime) = do
   setSession "_FBID" (TE.decodeUtf8 userId)
@@ -132,7 +132,7 @@ setUserAccessToken (FB.UserAccessToken userId data_ exptime) = do
 -- access token may have expired, we recommend using
 -- 'FB.hasExpired' and 'FB.isValid'.
 getUserAccessToken :: MonadIO mo =>
-                      GGHandler sub master mo (Maybe (FB.AccessToken FB.User))
+                      GGHandler sub master mo (Maybe FB.UserAccessToken)
 getUserAccessToken = runMaybeT $ do
   userId  <- MaybeT $ lookupSession "_FBID"
   data_   <- MaybeT $ lookupSession "_FBAT"
