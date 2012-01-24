@@ -111,7 +111,7 @@ authFacebook creds manager perms = AuthPlugin "fb" dispatch login
 
 
 -- | Create an @yesod-auth@'s 'Creds' for a given
--- @'FB.AccessToken' 'FB.User'@.
+-- @'FB.UserAccessToken'@.
 createCreds :: FB.UserAccessToken -> Creds m
 createCreds (FB.UserAccessToken userId _ _) = Creds "fb" id_ []
     where id_ = "http://graph.facebook.com/" `mappend` TE.decodeUtf8 userId
