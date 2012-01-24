@@ -30,10 +30,13 @@ facebookLogin :: AuthRoute
 facebookLogin = PluginR "fb" ["login"]
 
 
--- | Route for logout using this authentication plugin.  At the
--- time of writing, Facebook's policies
+-- | Route for logout using this authentication plugin.  This
+-- will log your user out of your site /and/ log him out of
+-- Facebook since, at the time of writing, Facebook's policies
 -- (<https://developers.facebook.com/policy/>) specified that the
--- user needs to be logged out from Facebook itself as well.
+-- user needs to be logged out from Facebook itself as well.  If
+-- you want to always logout from just your site (and not from
+-- Facebook), use 'LogoutR'.
 facebookLogout :: AuthRoute
 facebookLogout = PluginR "fb" ["logout"]
 
