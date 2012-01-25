@@ -1,6 +1,6 @@
 Name:                yesod-auth-fb
-Version:             0.0
-Synopsis:            [PREVIEW] Authentication backend for Yesod using Facebook.
+Version:             0.1
+Synopsis:            Authentication backend for Yesod using Facebook.
 Homepage:            https://github.com/meteficha/yesod-auth-fb
 License:             BSD3
 License-file:        LICENSE
@@ -12,8 +12,6 @@ Cabal-version:       >= 1.6
 Extra-source-files:  include/qq.h, README
 
 Description:
-  /THIS IS A PREVIEW RELEASE!/
-  .
   This package allows you to use Yesod's authentication framework
   with Facebook as your backend.  That is, your site's users will
   log in to your site through Facebook.  Your application need to
