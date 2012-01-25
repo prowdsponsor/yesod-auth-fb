@@ -20,7 +20,6 @@ import Yesod.Widget
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Facebook as FB
-import qualified Network.HTTP.Conduit as H
 import qualified Yesod.Auth.Message as Msg
 
 
