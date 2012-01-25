@@ -34,8 +34,8 @@ Library
   else
     Build-depends: base         >= 4       && < 4.3
 
-  Build-depends:   yesod-core   >= 0.9     && < 0.10
-                 , yesod-auth   >= 0.7     && < 0.8
+  Build-depends:   yesod-core   >= 0.10    && < 0.11
+                 , yesod-auth   >= 0.8     && < 0.9
                  , wai
                  , http-conduit
                  , text         >= 0.7     && < 0.12

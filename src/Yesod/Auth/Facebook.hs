@@ -10,7 +10,6 @@ module Yesod.Auth.Facebook
 import Control.Applicative ((<$>))
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT(..))
 import Data.Monoid (mappend)
 import Data.Text (Text)
@@ -50,9 +49,9 @@ authFacebook :: YesodAuth master
 authFacebook creds manager perms = AuthPlugin "fb" dispatch login
   where
     -- Get the URL in facebook.com where users are redirected to.
-    getRedirectUrl :: (YesodAuth master, Monad m) =>
+    getRedirectUrl :: YesodAuth master =>
                       (Route Auth -> Route master)
-                   -> GGHandler sub master m Text
+                   -> GHandler sub master Text
     getRedirectUrl tm = do
         render <- getUrlRender
         let proceedUrl = render (tm proceedR)
@@ -61,7 +60,7 @@ authFacebook creds manager perms = AuthPlugin "fb" dispatch login
 
     -- Redirect the user to Facebook.
     dispatch "GET" ["login"] =
-        redirectText RedirectTemporary =<< getRedirectUrl =<< getRouteToMaster
+        redirect =<< getRedirectUrl =<< getRouteToMaster
     -- Take Facebook's code and finish authentication.
     dispatch "GET" ["proceed"] = do
         tm     <- getRouteToMaster
@@ -92,9 +91,8 @@ authFacebook creds manager perms = AuthPlugin "fb" dispatch login
         case (valid, mtoken) of
           (True, Just token) -> do
             render <- getUrlRender
-            redirectText RedirectTemporary $
-              FB.getUserLogoutUrl token (render $ tm LogoutR)
-          _ -> redirect RedirectTemporary (tm LogoutR)
+            redirect $ FB.getUserLogoutUrl token (render $ tm LogoutR)
+          _ -> redirect (tm LogoutR)
     -- Anything else gives 404
     dispatch _ _ = notFound
 
@@ -120,9 +118,8 @@ createCreds (FB.UserAccessToken userId _ _) = Creds "fb" id_ []
 -- | Set the Facebook's user access token on the user's session.
 -- Usually you don't need to call this function, but it may
 -- become handy together with 'FB.extendUserAccessToken'.
-setUserAccessToken :: MonadIO m =>
-                      FB.UserAccessToken
-                   -> GGHandler sub master m ()
+setUserAccessToken :: FB.UserAccessToken
+                   -> GHandler sub master ()
 setUserAccessToken (FB.UserAccessToken userId data_ exptime) = do
   setSession "_FBID" (TE.decodeUtf8 userId)
   setSession "_FBAT" (TE.decodeUtf8 data_)
@@ -134,8 +131,7 @@ setUserAccessToken (FB.UserAccessToken userId data_ exptime) = do
 -- is not logged in via @yesod-auth-fb@).  Note that the returned
 -- access token may have expired, we recommend using
 -- 'FB.hasExpired' and 'FB.isValid'.
-getUserAccessToken :: MonadIO mo =>
-                      GGHandler sub master mo (Maybe FB.UserAccessToken)
+getUserAccessToken :: GHandler sub master (Maybe FB.UserAccessToken)
 getUserAccessToken = runMaybeT $ do
   userId  <- MaybeT $ lookupSession "_FBID"
   data_   <- MaybeT $ lookupSession "_FBAT"
