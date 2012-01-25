@@ -43,10 +43,9 @@ facebookLogout = PluginR "fb" ["logout"]
 -- | Yesod authentication plugin using Facebook.
 authFacebook :: YesodAuth master
              => FB.Credentials  -- ^ Your application's credentials.
-             -> H.Manager       -- ^ HTTP connection manager.
              -> [FB.Permission] -- ^ Permissions to be requested.
              -> AuthPlugin master
-authFacebook creds manager perms = AuthPlugin "fb" dispatch login
+authFacebook creds perms = AuthPlugin "fb" dispatch login
   where
     -- Get the URL in facebook.com where users are redirected to.
     getRedirectUrl :: YesodAuth master =>
@@ -68,6 +67,7 @@ authFacebook creds manager perms = AuthPlugin "fb" dispatch login
         query  <- queryString <$> waiRequest
         let proceedUrl = render (tm proceedR)
             query' = [(a,b) | (a, Just b) <- query]
+        manager <- authHttpManager <$> getYesod
         token <- liftIO $
                  FB.runFacebookT creds manager $
                  FB.getUserAccessTokenStep2 proceedUrl query'
@@ -83,6 +83,7 @@ authFacebook creds manager perms = AuthPlugin "fb" dispatch login
         -- Facebook doesn't redirect back to our chosen address
         -- when the user access token is invalid, so we need to
         -- check its validity before anything else.
+        manager <- authHttpManager <$> getYesod
         let isValid = liftIO .
                       FB.runNoAuthFacebookT manager .
                       FB.isValid
