@@ -1,4 +1,4 @@
-module Yesod.Auth.FB
+module Yesod.Auth.Facebook
     ( authFacebook
     , facebookLogin
     , facebookLogout
