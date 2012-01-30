@@ -51,9 +51,12 @@ authFacebook creds perms = AuthPlugin "fb" dispatch login
                       (Route Auth -> Route master)
                    -> GHandler sub master Text
     getRedirectUrl tm = do
-        render <- getUrlRender
+        render  <- getUrlRender
+        manager <- authHttpManager <$> getYesod
         let proceedUrl = render (tm proceedR)
-        return $ FB.getUserAccessTokenStep1 creds proceedUrl perms
+        liftIO $
+          FB.runFacebookT creds manager $
+          FB.getUserAccessTokenStep1 proceedUrl perms
     proceedR = PluginR "fb" ["proceed"]
 
     -- Redirect the user to Facebook.
@@ -91,7 +94,10 @@ authFacebook creds perms = AuthPlugin "fb" dispatch login
         case (valid, mtoken) of
           (True, Just token) -> do
             render <- getUrlRender
-            redirect $ FB.getUserLogoutUrl token (render $ tm LogoutR)
+            destination <- liftIO $
+                           FB.runFacebookT creds manager $
+                           FB.getUserLogoutUrl token (render $ tm LogoutR)
+            redirect destination
           _ -> redirect (tm LogoutR)
     -- Anything else gives 404
     dispatch _ _ = notFound
