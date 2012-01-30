@@ -1,9 +1,15 @@
 module Yesod.Auth.Facebook
-    ( authFacebook
+    ( -- * Authentication plugin
+      authFacebook
     , facebookLogin
     , facebookLogout
+
+      -- * Useful functions
     , getUserAccessToken
     , setUserAccessToken
+
+      -- * Advanced
+    , beta_authFacebook
     ) where
 
 #include "qq.h"
@@ -44,19 +50,45 @@ authFacebook :: YesodAuth master
              => FB.Credentials  -- ^ Your application's credentials.
              -> [FB.Permission] -- ^ Permissions to be requested.
              -> AuthPlugin master
-authFacebook creds perms = AuthPlugin "fb" dispatch login
+authFacebook = authFacebookHelper False
+
+
+-- | Same as 'authFacebook', but uses Facebook's beta tier.
+-- Usually this is /not/ what you want, so use 'authFacebook'
+-- unless you know what you're doing.
+beta_authFacebook :: YesodAuth master
+                  => FB.Credentials
+                  -> [FB.Permission]
+                  -> AuthPlugin master
+beta_authFacebook = authFacebookHelper True
+
+
+-- | Helper function for 'authFacebook' and 'beta_authFacebook'.
+authFacebookHelper :: YesodAuth master
+                   => Bool -- ^ @useBeta@
+                   -> FB.Credentials
+                   -> [FB.Permission]
+                   -> AuthPlugin master
+authFacebookHelper useBeta creds perms = AuthPlugin "fb" dispatch login
   where
+    -- Run a Facebook action.
+    runFB :: YesodAuth master =>
+             FB.FacebookT FB.Auth IO a
+          -> GHandler sub master a
+    runFB act = do
+      manager <- authHttpManager <$> getYesod
+      liftIO $ (if useBeta
+                then FB.beta_runFacebookT
+                else FB.runFacebookT) creds manager act
+
     -- Get the URL in facebook.com where users are redirected to.
     getRedirectUrl :: YesodAuth master =>
                       (Route Auth -> Route master)
                    -> GHandler sub master Text
     getRedirectUrl tm = do
         render  <- getUrlRender
-        manager <- authHttpManager <$> getYesod
         let proceedUrl = render (tm proceedR)
-        liftIO $
-          FB.runFacebookT creds manager $
-          FB.getUserAccessTokenStep1 proceedUrl perms
+        runFB $ FB.getUserAccessTokenStep1 proceedUrl perms
     proceedR = PluginR "fb" ["proceed"]
 
     -- Redirect the user to Facebook.
@@ -69,10 +101,7 @@ authFacebook creds perms = AuthPlugin "fb" dispatch login
         query  <- queryString <$> waiRequest
         let proceedUrl = render (tm proceedR)
             query' = [(a,b) | (a, Just b) <- query]
-        manager <- authHttpManager <$> getYesod
-        token <- liftIO $
-                 FB.runFacebookT creds manager $
-                 FB.getUserAccessTokenStep2 proceedUrl query'
+        token <- runFB $ FB.getUserAccessTokenStep2 proceedUrl query'
         setUserAccessToken token
         setCreds True (createCreds token)
     -- Logout the user from our site and from Facebook.
@@ -85,19 +114,13 @@ authFacebook creds perms = AuthPlugin "fb" dispatch login
         -- Facebook doesn't redirect back to our chosen address
         -- when the user access token is invalid, so we need to
         -- check its validity before anything else.
-        manager <- authHttpManager <$> getYesod
-        let isValid = liftIO .
-                      FB.runNoAuthFacebookT manager .
-                      FB.isValid
-        valid <- maybe (return False) isValid mtoken
+        valid <- maybe (return False) (runFB . FB.isValid) mtoken
 
         case (valid, mtoken) of
           (True, Just token) -> do
             render <- getUrlRender
-            destination <- liftIO $
-                           FB.runFacebookT creds manager $
-                           FB.getUserLogoutUrl token (render $ tm LogoutR)
-            redirect destination
+            dest <- runFB $ FB.getUserLogoutUrl token (render $ tm LogoutR)
+            redirect dest
           _ -> redirect (tm LogoutR)
     -- Anything else gives 404
     dispatch _ _ = notFound
