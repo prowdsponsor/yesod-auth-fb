@@ -56,6 +56,8 @@ authFacebook = authFacebookHelper False
 -- | Same as 'authFacebook', but uses Facebook's beta tier.
 -- Usually this is /not/ what you want, so use 'authFacebook'
 -- unless you know what you're doing.
+--
+-- /Since: 0.10.1/
 beta_authFacebook :: YesodAuth master
                   => FB.Credentials
                   -> [FB.Permission]
