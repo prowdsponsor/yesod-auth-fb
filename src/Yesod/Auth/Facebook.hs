@@ -94,7 +94,9 @@ authFacebookHelper useBeta creds perms = AuthPlugin "fb" dispatch login
     proceedR = PluginR "fb" ["proceed"]
 
     -- Redirect the user to Facebook.
-    dispatch "GET" ["login"] =
+    dispatch "GET" ["login"] = do
+        m <- getYesod
+        when (redirectToReferer m) setUltDestReferer
         redirect =<< getRedirectUrl =<< getRouteToMaster
     -- Take Facebook's code and finish authentication.
     dispatch "GET" ["proceed"] = do
@@ -121,9 +123,19 @@ authFacebookHelper useBeta creds perms = AuthPlugin "fb" dispatch login
         case (valid, mtoken) of
           (True, Just token) -> do
             render <- getUrlRender
-            dest <- runFB $ FB.getUserLogoutUrl token (render $ tm LogoutR)
+            dest <- runFB $ FB.getUserLogoutUrl token (render $ tm $ PluginR "fb" ["kthxbye"])
             redirect dest
-          _ -> redirect (tm LogoutR)
+          _ -> dispatch "GET" ["kthxbye"]
+    -- Finish the logout procedure.  Unfortunately we have to
+    -- replicate yesod-auth's postLogoutR code here since it's
+    -- not accessible for us.  We also can't just redirect to
+    -- LogoutR since it would otherwise call setUltDestReferrer
+    -- again.
+    dispatch "GET" ["kthxbye"] = do
+        m <- getYesod
+        deleteSession "_ID"
+        onLogout
+        redirectUltDest $ logoutDest m
     -- Anything else gives 404
     dispatch _ _ = notFound
 
