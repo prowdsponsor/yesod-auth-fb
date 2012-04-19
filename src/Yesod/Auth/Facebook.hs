@@ -27,7 +27,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Facebook as FB
 import qualified Yesod.Auth.Message as Msg
-
+import qualified Data.Conduit as C
 
 -- | Route for login using this authentication plugin.
 facebookLogin :: AuthRoute
@@ -75,13 +75,13 @@ authFacebookHelper useBeta creds perms = AuthPlugin "fb" dispatch login
   where
     -- Run a Facebook action.
     runFB :: YesodAuth master =>
-             FB.FacebookT FB.Auth IO a
+             FB.FacebookT FB.Auth (C.ResourceT IO) a
           -> GHandler sub master a
     runFB act = do
       manager <- authHttpManager <$> getYesod
-      liftIO $ (if useBeta
-                then FB.beta_runFacebookT
-                else FB.runFacebookT) creds manager act
+      liftIO $ C.runResourceT $
+        (if useBeta then FB.beta_runFacebookT else FB.runFacebookT)
+        creds manager act
 
     -- Get the URL in facebook.com where users are redirected to.
     getRedirectUrl :: YesodAuth master =>
