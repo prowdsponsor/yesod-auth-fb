@@ -134,6 +134,9 @@ authFacebookHelper useBeta creds perms = AuthPlugin "fb" dispatch login
     dispatch "GET" ["kthxbye"] = do
         m <- getYesod
         deleteSession "_ID"
+        deleteSession "_FBID"
+        deleteSession "_FBAT"
+        deleteSession "_FBET"
         onLogout
         redirectUltDest $ logoutDest m
     -- Anything else gives 404
