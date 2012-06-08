@@ -1,3 +1,5 @@
+-- | @yesod-auth@ authentication plugin using Facebook's
+-- server-side authentication flow.
 module Yesod.Auth.Facebook
     ( -- * Authentication plugin
       authFacebook
