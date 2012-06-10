@@ -16,6 +16,7 @@ module Yesod.Auth.Facebook.ClientSide
       -- * Useful functions
     , serveChannelFile
     , getFbCredentials
+    , defaultFbInitOpts
 
 {- TODO
     , getUserAccessToken
@@ -42,8 +43,10 @@ import Yesod.Auth
 import Yesod.Content
 import Yesod.Handler
 import Yesod.Widget
+import qualified Data.Aeson as A
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Data.Time as TI
 import qualified Facebook as FB
 -- import qualified Yesod.Auth.Message as Msg
@@ -69,10 +72,9 @@ import qualified Facebook as FB
 -- @position: absolute@.
 facebookJSSDK :: YesodAuthFbClientSide master => GWidget sub master ()
 facebookJSSDK = do
-  (creds, channelFile, lang) <-
-    lift $ (,,) <$> getFbCredentials
-                <*> getFbChannelFile
-                <*> getFbLanguage
+  (lang, fbInitOpts) <-
+    lift $ (,) <$> getFbLanguage
+               <*> getFbInitOpts
   [whamlet|
     <div #fb-root>
    |]
@@ -88,13 +90,7 @@ facebookJSSDK = do
 
     // Init the SDK upon load
     window.fbAsyncInit = function() {
-      FB.init({
-        appId      : '#{TE.decodeUtf8 $ FB.appId creds}',
-        channelUrl : '@{channelFile}',
-        status     : true, // check login status
-        cookie     : true, // enable cookies to allow the server to access the session
-        xfbml      : true  // parse XFBML
-      });
+      FB.init(#{TLE.decodeUtf8 $ A.encode fbInitOpts});
       ^{fbAsyncInitJs}
     }
    |]
@@ -184,6 +180,23 @@ class YesodAuth master => YesodAuthFbClientSide master where
                       -- ^ Return channel file in the /same/
                       -- /subdomain/ as the current route.
 
+  -- | /(Optional)/ Options that should be given to @FB.init()@.
+  -- The default implementation is 'defaultFbInitOpts'.  If you
+  -- intend to override this function, we advise you to also call
+  -- 'defaultFbInitOpts', e.g.:
+  --
+  -- @
+  --     getFbInitOpts = do
+  --       defOpts <- defaultFbInitOpts
+  --       ...
+  --       return (defOpts ++ myOpts)
+  -- @
+  --
+  -- However, if you know what you're doing you're free to
+  -- override any or all values returned by 'defaultFbInitOpts'.
+  getFbInitOpts :: GHandler sub master [(Text, A.Value)]
+  getFbInitOpts = defaultFbInitOpts
+
   -- | /(Optional)/ Arbitrary JavaScript that will be called on
   -- Facebook's JS SDK's @fbAsyncInit@ (i.e. as soon as their SDK
   -- is loaded).
@@ -196,6 +209,29 @@ class YesodAuth master => YesodAuthFbClientSide master where
   -- @"en_US"@.
   getFbLanguage :: GHandler sub master Text
   getFbLanguage = return "en_US"
+
+
+-- | Default implementation for 'getFbInitOpts'.  Defines:
+--
+--  [@appId@] Using 'getFbCredentials'.
+--
+--  [@channelUrl@] Using 'getFbChannelFile'.
+--
+--  [@cookie@] To @True@.  This one is extremely important and
+--  this module won't work /at all/ without it.
+--
+--  [@status@] To @True@, since this usually is what you want.
+defaultFbInitOpts :: YesodAuthFbClientSide master =>
+                     GHandler sub master [(Text, A.Value)]
+defaultFbInitOpts = do
+  ur <- getUrlRender
+  creds <- getFbCredentials
+  channelFile <- getFbChannelFile
+  return [ ("appId",      A.toJSON $ TE.decodeUtf8 $ FB.appId creds)
+         , ("channelUrl", A.toJSON $ ur channelFile)
+         , ("status",     A.toJSON True) -- Check login status.
+         , ("cookie",     A.toJSON True) -- Enable cookie, extremely important.
+         ]
 
 
 -- | Facebook's channel file implementation (see
