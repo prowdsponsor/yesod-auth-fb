@@ -1,6 +1,11 @@
 -- | @yesod-auth@ authentication plugin using Facebook's
 -- client-side authentication flow.
 --
+-- /WARNING:/ Currently this authentication plugin /does not/
+-- work with other authentication plugins.  If you need many
+-- different authentication plugins, please try the server-side
+-- authentication flow (module "Yesod.Auth.Facebook.ServerSide").
+--
 -- TODO: Explain how the whole thing fits together.
 module Yesod.Auth.Facebook.ClientSide
     ( -- * Authentication plugin
@@ -68,9 +73,11 @@ import qualified Yesod.Auth.Message as Msg
 -- @position: absolute@.
 facebookJSSDK :: YesodAuthFbClientSide master => GWidget sub master ()
 facebookJSSDK = do
-  (lang, fbInitOpts) <-
-    lift $ (,) <$> getFbLanguage
-               <*> getFbInitOpts
+  (lang, fbInitOpts, muid) <-
+    lift $ (,,) <$> getFbLanguage
+                <*> getFbInitOpts
+                <*> maybeAuthId
+  let loggedIn = maybe "false" (const "true") muid
   [whamlet|
     <div #fb-root>
    |]
@@ -88,6 +95,32 @@ facebookJSSDK = do
     window.fbAsyncInit = function() {
       FB.init(#{TLE.decodeUtf8 $ A.encode fbInitOpts});
       ^{fbAsyncInitJs}
+
+      // Subscribe to statusChange event.
+      FB.Event.subscribe("auth.statusChange", function (response) {
+        if (response) {
+          // If the user is logged in on our site or not.
+          var loggedIn = #{loggedIn};
+
+          if (response.status === 'connected') {
+            // Facebook says the user is logged in.
+            if (!loggedIn) {
+              // But he is not logged in on our site.
+              // TODO: Log the user in.
+            }
+          } else {
+            // User is not logged in.
+            if (loggedIn) {
+              // But he is logged in on our site, log him out.
+              // An undesirable side-effect of this change is
+              // that we're always going to log the user out of
+              // the site if he has logged in via another
+              // Yesod authentication plugin.
+              // TODO: Log the user out.
+            }
+          }
+        }
+      });
     }
    |]
 

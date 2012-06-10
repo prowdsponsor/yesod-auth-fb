@@ -26,9 +26,11 @@ Description:
   via the "Yesod.Auth.Facebook.ClientSide" module.  It's up to
   you to decide which one to use.  The server-side code is older
   and as such has been through a lot more testing than the
-  client-side code.  The client-side code, however, allows you to
-  use some features that are available only to the Facebook JS
-  SDK (such as automatically logging your users in, see
+  client-side code.  Also, for now only the server-side code is
+  able to work with other authentication plugins.  The
+  client-side code, however, allows you to use some features that
+  are available only to the Facebook JS SDK (such as
+  automatically logging your users in, see
   <https://developers.facebook.com/blog/post/2012/05/08/how-to--improve-the-experience-for-returning-users/>).
 
 Source-repository head
