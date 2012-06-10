@@ -40,13 +40,8 @@ flag ghc7
 Library
   hs-source-dirs: src
 
-  if flag(ghc7)
-    Cpp-options:   -DGHC7
-    Build-depends: base         >= 4.3     && < 5
-  else
-    Build-depends: base         >= 4       && < 4.3
-
-  Build-depends:   yesod-core   >= 1.0     && < 1.1
+  Build-depends:   base         >= 4.3     && < 5
+                 , yesod-core   >= 1.0     && < 1.1
                  , yesod-auth   >= 1.0     && < 1.1
                  , shakespeare-js
                  , wai
@@ -63,6 +58,5 @@ Library
   Exposed-modules: Yesod.Auth.Facebook
                  , Yesod.Auth.Facebook.ClientSide
                  , Yesod.Auth.Facebook.ServerSide
-  Extensions: GADTs QuasiQuotes CPP OverloadedStrings
+  Extensions: GADTs QuasiQuotes OverloadedStrings
   GHC-options: -Wall
-  Include-dirs: include

@@ -28,7 +28,6 @@ module Yesod.Auth.Facebook.ClientSide
     , getSignedRequestCookieName
     ) where
 
-#include "qq.h"
 import Control.Applicative ((<$>), (<*>))
 -- import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO, liftIO)

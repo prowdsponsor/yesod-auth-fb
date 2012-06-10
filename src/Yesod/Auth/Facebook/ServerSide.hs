@@ -14,7 +14,6 @@ module Yesod.Auth.Facebook.ServerSide
     , beta_authFacebook
     ) where
 
-#include "qq.h"
 import Control.Applicative ((<$>))
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -150,7 +149,7 @@ authFacebookHelper useBeta creds perms = AuthPlugin "fb" dispatch login
           -> GWidget sub master ()
     login tm = do
         redirectUrl <- lift (getRedirectUrl tm)
-        [QQ(whamlet)|
+        [whamlet|
 <p>
     <a href="#{redirectUrl}">_{Msg.Facebook}
 |]
