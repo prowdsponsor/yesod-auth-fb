@@ -48,7 +48,7 @@ import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Data.Time as TI
 import qualified Facebook as FB
--- import qualified Yesod.Auth.Message as Msg
+import qualified Yesod.Auth.Message as Msg
 -- import qualified Data.Conduit as C
 
 
@@ -322,7 +322,6 @@ authFacebookClientSideHelper useBeta =
     AuthPlugin "fb-clientside" dispatch login
   where
     dispatch = undefined
-    login    = undefined
 
 {- TODO
     -- Run a Facebook action.
@@ -394,18 +393,17 @@ authFacebookClientSideHelper useBeta =
     -- Anything else gives 404
     dispatch _ _ = notFound
 
+-}
     -- Small widget for multiple login websites.
     login :: YesodAuth master =>
              (Route Auth -> Route master)
           -> GWidget sub master ()
-    login tm = do
-        redirectUrl <- lift (getRedirectUrl tm)
-        [QQ(whamlet)|
-<p>
-    <a href="#{redirectUrl}">_{Msg.Facebook}
-|]
-
--}
+    login tm = [whamlet|
+                  <p>
+                    <a href="#{facebookLogin perms}">
+                      _{Msg.Facebook}
+               |]
+      where perms = []
 
 
 -- | Create an @yesod-auth@'s 'Creds' for a given
