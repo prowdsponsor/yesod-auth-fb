@@ -32,7 +32,7 @@ module Yesod.Auth.Facebook.ClientSide
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad (mzero)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Trans.Maybe (MaybeT(..))
+import Control.Monad.Trans.Error (ErrorT(..), throwError)
 import Data.ByteString (ByteString)
 import Data.Monoid (mappend, mempty)
 import Data.Text (Text)
@@ -44,6 +44,7 @@ import Yesod.Handler
 import Yesod.Request
 import Yesod.Widget
 import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy.Encoding as TLE
@@ -341,10 +342,10 @@ authFacebookClientSide =
     AuthPlugin "fbcs" dispatch login
   where
     dispatch "GET" ["login"] = do
-      mtoken <- getUserAccessToken
-      case mtoken of
-        Just token -> setCreds True (createCreds token)
-        Nothing -> fail "authFacebookClientSide: tried to login without user access token."
+      etoken <- getUserAccessToken
+      case etoken of
+        Right token -> setCreds True (createCreds token)
+        Left msg -> fail msg
     -- Anything else gives 404
     dispatch _ _ = notFound
 
@@ -373,7 +374,7 @@ signedRequestCookieName = T.append "fbsr_" . TE.decodeUtf8 . FB.appId
 
 
 -- | Get the Facebook's user access token from Facebook's cookie.
--- Returns @Nothing@ if the cookie is not found, is not
+-- Returns 'Left' if the cookie is not found, is not
 -- authentic, is for another app, is corrupted /or/ does not
 -- contains the information needed (maybe the user is not logged
 -- in).  Note that the returned access token may have expired, we
@@ -381,31 +382,42 @@ signedRequestCookieName = T.append "fbsr_" . TE.decodeUtf8 . FB.appId
 --
 -- This 'getUserAccessToken' is completely different from the one
 -- from the "Yesod.Auth.Facebook.ServerSide" module.  This one
--- does not use the session, which means that (a) it's somewhat
+-- does not use only the session, which means that (a) it's somewhat
 -- slower because everytime you call this 'getUserAccessToken' it
 -- needs to reverify the cookie, but (b) it is always up-to-date
 -- with the latest cookie that the Facebook JS SDK has given us
 -- and (c) avoids duplicating the information from the cookie
 -- into the session.
 getUserAccessToken :: YesodAuthFbClientSide master =>
-                      GHandler sub master (Maybe FB.UserAccessToken)
+                      GHandler sub master (Either String FB.UserAccessToken)
 getUserAccessToken =
-  runMaybeT $ do
+  runErrorT $ do
     creds <- lift getFbCredentials
     manager <- authHttpManager <$> lift getYesod
-    unparsed <- MaybeT $ lookupCookie (signedRequestCookieName creds)
-    unUATVSR <$> MaybeT ( FB.runFacebookT creds manager $
-                          FB.parseSignedRequest (TE.encodeUtf8 unparsed) )
+    unparsed <- toErrorT "cookie not found" $ lookupCookie (signedRequestCookieName creds)
+    A.Object parsed <- toErrorT "cannot parse signed request" $
+                       FB.runFacebookT creds manager $
+                       FB.parseSignedRequest (TE.encodeUtf8 unparsed)
+    case (flip A.parseEither () $ const $
+          (,,,) <$> parsed A..:? "user_id"
+                <*> parsed A..:? "code"
+                <*> parsed A..:? "oauth_token"
+                <*> parsed A..:? "expires") of
+      Right (Just uid, _, Just oauth_token, Just expires) ->
+        return $ FB.UserAccessToken uid oauth_token (toUTCTime expires)
+      Right (Just uid, Just code, _, _) -> lift $ do
+        -- TODO: Caching
+        FB.runFacebookT creds manager $
+          FB.getUserAccessTokenStep2 "" [("code", code)]
+      Right (Nothing, _, _, _) ->
+        throwError "no user_id on signed request"
+      Right (_, _, _, _) ->
+        throwError "signed request has user_id but no code or oauth_token"
+      Left msg ->
+        throwError ("never here (" ++ show msg ++ ")")
+  where
+    toErrorT :: Functor m => String -> m (Maybe a) -> ErrorT String m a
+    toErrorT msg = ErrorT . fmap (maybe (Left ("getUserAccessToken: " ++ msg)) Right)
 
--- | @newtype@ for 'FB.UserAccessToken' used when getting the
--- access token from a signed request.
-newtype UserAccessTokenViaSignedRequest =
-  UATVSR { unUATVSR :: FB.UserAccessToken }
-instance A.FromJSON UserAccessTokenViaSignedRequest where
-  parseJSON (A.Object v) =
-    UATVSR <$> (FB.UserAccessToken <$> v A..: "user_id"
-                                   <*> v A..: "oauth_token"
-                                   <*> (toUTCTime <$> v A..: "expires"))
-      where toUTCTime :: Integer -> TI.UTCTime
-            toUTCTime = TI.posixSecondsToUTCTime . fromIntegral
-  parseJSON _ = mzero
+    toUTCTime :: Integer -> TI.UTCTime
+    toUTCTime = TI.posixSecondsToUTCTime . fromIntegral
