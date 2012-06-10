@@ -146,8 +146,10 @@ type JavaScriptCall = Text
 
 
 -- | Type class that needs to be implemented in order to use
--- 'authFacebookClientSide'.  All functions are required unless
--- otherwise noted.
+-- 'authFacebookClientSide'.
+--
+-- Minimal complete definition: 'fbCredentials' and
+-- 'getFbChannelFile'.
 class YesodAuth master => YesodAuthFbClientSide master where
   -- | Facebook 'FB.Credentials' for your app.
   fbCredentials :: master -> FB.Credentials
@@ -168,7 +170,7 @@ class YesodAuth master => YesodAuthFbClientSide master where
   -- as
   --
   -- @
-  --   fbChannelFile _ _ = ChannelFileR
+  --   getFbChannelFile = return ChannelFileR
   -- @
   --
   -- However, if your routes span many subdomains, then you must
