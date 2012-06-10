@@ -428,11 +428,11 @@ authFacebookClientSideHelper useBeta =
     login :: YesodAuth master =>
              (Route Auth -> Route master)
           -> GWidget sub master ()
-    login tm = [whamlet|
-                  <p>
-                    <a href="#{facebookLogin perms}">
-                      _{Msg.Facebook}
-               |]
+    login _ = [whamlet|
+                 <p>
+                   <a href="#{facebookLogin perms}">
+                     _{Msg.Facebook}
+              |]
       where perms = []
 
 
