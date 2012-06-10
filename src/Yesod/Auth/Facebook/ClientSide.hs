@@ -149,7 +149,8 @@ type JavaScriptCall = Text
 -- 'authFacebookClientSide'.
 --
 -- Minimal complete definition: 'fbCredentials' and
--- 'getFbChannelFile'.
+-- 'getFbChannelFile'.  (We recommend implementing
+-- 'getFbLanguage' as well.)
 class YesodAuth master => YesodAuthFbClientSide master where
   -- | Facebook 'FB.Credentials' for your app.
   fbCredentials :: master -> FB.Credentials
@@ -182,6 +183,38 @@ class YesodAuth master => YesodAuthFbClientSide master where
                       -- ^ Return channel file in the /same/
                       -- /subdomain/ as the current route.
 
+  -- | /(Optional)/ Returns which language we should ask for
+  -- Facebook's JS SDK.  You may use information about the
+  -- current request to decide upon a language.  Defaults to
+  -- @"en_US"@.
+  --
+  -- If you already use Yesod's I18n capabilities, then there's
+  -- an easy way of implementing this function.  Just create a
+  -- @FbLanguage@ message, for example on your @en.msg@ file:
+  --
+  -- @
+  --   FbLanguage: en_US
+  -- @
+  --
+  -- and on your @pt.msg@ file:
+  --
+  -- @
+  --   FbLanguage: pt_BR
+  -- @
+  --
+  -- Then implement 'getFbLanguage' as:
+  --
+  -- @
+  --   getFbLanguage = ($ MsgFbLanguage) \<$\> getMessageRender
+  -- @
+  --
+  -- Although somewhat hacky, this trick works perfectly fine and
+  -- /guarantees/ that all Facebook messages will be in the same
+  -- language as the rest of your site (even if Facebook support
+  -- a language that you don't).
+  getFbLanguage :: GHandler sub master Text
+  getFbLanguage = return "en_US"
+
   -- | /(Optional)/ Options that should be given to @FB.init()@.
   -- The default implementation is 'defaultFbInitOpts'.  If you
   -- intend to override this function, we advise you to also call
@@ -204,13 +237,6 @@ class YesodAuth master => YesodAuthFbClientSide master where
   -- is loaded).
   fbAsyncInitJs :: JavascriptUrl (Route master)
   fbAsyncInitJs = const mempty
-
-  -- | /(Optional)/ Returns which language we should ask for
-  -- Facebook's JS SDK.  You may use information about the
-  -- current request to decide upon a language.  Defaults to
-  -- @"en_US"@.
-  getFbLanguage :: GHandler sub master Text
-  getFbLanguage = return "en_US"
 
 
 -- | Default implementation for 'getFbInitOpts'.  Defines:
