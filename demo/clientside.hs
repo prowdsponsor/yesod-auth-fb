@@ -55,6 +55,7 @@ getHomeR :: Handler RepHtml
 getHomeR = do
   muid <- maybeAuthId
   mcreds <- lookupSession "creds"
+  mtoken <- getUserAccessToken
   let perms = []
   pc <- widgetToPageContent $ [whamlet|
           ^{facebookJSSDK AuthR}
@@ -62,6 +63,8 @@ getHomeR = do
             Current uid: #{show muid}
             <br>
             Current credentials: #{show mcreds}
+            <br>
+            Current access token: #{show mtoken}
           <p>
             <button onclick="#{facebookLogin perms}">
               Login
