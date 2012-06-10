@@ -343,11 +343,6 @@ authFacebookClientSide =
       case mtoken of
         Just token -> setCreds True (createCreds token)
         Nothing -> fail "authFacebookClientSide: tried to login without user access token."
-    dispatch "GET" ["logout"] = do
-        m <- getYesod
-        deleteSession "_ID"
-        onLogout
-        redirectUltDest $ logoutDest m
     -- Anything else gives 404
     dispatch _ _ = notFound
 
