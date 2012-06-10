@@ -10,6 +10,7 @@ import Yesod.Auth.Facebook.ClientSide
 import Yesod.Form.I18n.English
 import qualified Control.Exception.Lifted as E
 import qualified Data.ByteString.Char8 as B
+import qualified Data.Text as T
 import qualified Facebook as FB
 import qualified Network.HTTP.Conduit as H
 
@@ -33,15 +34,17 @@ instance RenderMessage Test FormMessage where
 
 
 instance YesodAuth Test where
-  type AuthId Test = Creds Test
-  getAuthId = return . Just
+  type AuthId Test = T.Text
+  loginDest  _ = HomeR
+  logoutDest _ = HomeR
+  getAuthId creds@(Creds _ id_ _) = do
+    setSession "creds" (T.pack $ show creds)
+    return (Just id_)
   authPlugins _ = [authFacebookClientSide]
   redirectToReferer _ = True
   authHttpManager = httpManager
 
 deriving instance Show (Creds m)
-instance PathPiece (Creds m) where
-
 
 instance YesodAuthFbClientSide Test where
   fbCredentials = fbCreds
@@ -50,11 +53,14 @@ instance YesodAuthFbClientSide Test where
 
 getHomeR :: Handler RepHtml
 getHomeR = do
-  mcreds <- maybeAuthId
+  muid <- maybeAuthId
+  mcreds <- lookupSession "creds"
   let perms = []
   pc <- widgetToPageContent $ [whamlet|
           ^{facebookJSSDK AuthR}
           <p>
+            Current uid: #{show muid}
+            <br>
             Current credentials: #{show mcreds}
           <p>
             <button onclick="#{facebookLogin perms}">
