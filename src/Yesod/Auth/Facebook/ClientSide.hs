@@ -58,10 +58,10 @@ import qualified Facebook as FB
 --
 -- @
 --   $doctype 5
---   <html>
---     <head>
+--   \<html\>
+--     \<head\>
 --       ...
---     <body>
+--     \<body\>
 --       ^{facebookJSSDK}
 --       ...
 -- @
@@ -101,7 +101,7 @@ facebookJSSDK = do
 -- example:
 --
 -- @
---   <a href="#" onclick="#{facebookLogin perms}">
+--   \<a href=\"\#\" onclick=\"\#{facebookLogin perms}\"\>
 --     Login via Facebook
 -- @
 --
@@ -125,7 +125,7 @@ facebookLogin perms =
 -- example:
 --
 -- @
---   <a href="#" onclick="#{facebookLogout}">
+--   \<a href=\"\#\" onclick=\"\#{facebookLogout}\"\>
 --     Logout
 -- @
 --
