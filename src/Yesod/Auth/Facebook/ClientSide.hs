@@ -17,11 +17,8 @@ module Yesod.Auth.Facebook.ClientSide
     , serveChannelFile
     , getFbCredentials
     , defaultFbInitOpts
-
-{- TODO
-    , getUserAccessToken
-    , setUserAccessToken
--}
+    , FBSS.getUserAccessToken
+    , FBSS.setUserAccessToken
 
       -- * Advanced
     , beta_authFacebookClientSide
@@ -50,6 +47,8 @@ import qualified Data.Time as TI
 import qualified Facebook as FB
 import qualified Yesod.Auth.Message as Msg
 -- import qualified Data.Conduit as C
+
+import qualified Yesod.Auth.Facebook.ServerSide as FBSS
 
 
 -- | Hamlet that should be spliced /right after/ the @<body>@ tag
@@ -419,32 +418,3 @@ getSignedRequestCookieName :: YesodAuthFbClientSide master =>
 getSignedRequestCookieName = do
   creds <- getFbCredentials
   return $ "fbsr_" `T.append` TE.decodeUtf8 (FB.appId creds)
-
-{- TODO
-
--- | Set the Facebook's user access token on the user's session.
--- Usually you don't need to call this function, but it may
--- become handy together with 'FB.extendUserAccessToken'.
-setUserAccessToken :: FB.UserAccessToken
-                   -> GHandler sub master ()
-setUserAccessToken (FB.UserAccessToken userId data_ exptime) = do
-  setSession "_FBID" (TE.decodeUtf8 userId)
-  setSession "_FBAT" (TE.decodeUtf8 data_)
-  setSession "_FBET" (T.pack $ show exptime)
-
-
--- | Get the Facebook's user access token from the session.
--- Returns @Nothing@ if it's not found (probably because the user
--- is not logged in via @yesod-auth-fb@).  Note that the returned
--- access token may have expired, we recommend using
--- 'FB.hasExpired' and 'FB.isValid'.
-getUserAccessToken :: GHandler sub master (Maybe FB.UserAccessToken)
-getUserAccessToken = runMaybeT $ do
-  userId  <- MaybeT $ lookupSession "_FBID"
-  data_   <- MaybeT $ lookupSession "_FBAT"
-  exptime <- MaybeT $ lookupSession "_FBET"
-  return $ FB.UserAccessToken (TE.encodeUtf8 userId)
-                              (TE.encodeUtf8 data_)
-                              (read $ T.unpack exptime)
-
--}
