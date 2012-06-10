@@ -74,13 +74,14 @@ facebookJSSDK :: YesodAuthFbClientSide master =>
                  (Route Auth -> Route master)
               -> GWidget sub master ()
 facebookJSSDK toMaster = do
-  (lang, fbInitOpts, muid) <-
+  (lang, fbInitOptsList, muid) <-
     lift $ (,,) <$> getFbLanguage
                 <*> getFbInitOpts
                 <*> maybeAuthId
   let loggedIn = maybe ("false" :: Text) (const "true") muid
       loginRoute  = toMaster $ PluginR "fbcs" ["login"]
       logoutRoute = toMaster $ LogoutR
+      fbInitOpts  = A.object $ map (uncurry (A..=)) fbInitOptsList
   [whamlet|
     <div #fb-root>
    |]
