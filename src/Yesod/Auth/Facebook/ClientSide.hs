@@ -30,7 +30,6 @@ module Yesod.Auth.Facebook.ClientSide
     ) where
 
 import Control.Applicative ((<$>), (<*>))
-import Control.Monad (mzero)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Error (ErrorT(..), throwError)
 import Data.ByteString (ByteString)
@@ -399,20 +398,38 @@ getUserAccessToken =
                        FB.runFacebookT creds manager $
                        FB.parseSignedRequest (TE.encodeUtf8 unparsed)
     case (flip A.parseEither () $ const $
-          (,,,) <$> parsed A..:? "user_id"
-                <*> parsed A..:? "code"
+          (,,,) <$> parsed A..:? "code"
+                <*> parsed A..:? "user_id"
                 <*> parsed A..:? "oauth_token"
                 <*> parsed A..:? "expires") of
-      Right (Just uid, _, Just oauth_token, Just expires) ->
+      Right (Just code, _, _, _) -> lift $ do
+        -- We have to exchange the code for the access token.
+        moldCode <- lookupSession sessionCode
+        case moldCode of
+          Just code' | code == TE.encodeUtf8 code' -> do
+            -- We have a cached token for this code.
+            Just userId  <- lookupSession sessionUserId
+            Just data_   <- lookupSession sessionToken
+            Just exptime <- lookupSession sessionExpires
+            return $ FB.UserAccessToken (TE.encodeUtf8 userId)
+                                        (TE.encodeUtf8 data_)
+                                        (read $ T.unpack exptime)
+          _ -> do
+            -- Get access token from Facebook.
+            token <- FB.runFacebookT creds manager $
+                     FB.getUserAccessTokenStep2 "" [("code", code)]
+            case token of
+              FB.UserAccessToken userId data_ exptime -> do
+                -- Save it for later.
+                setSession sessionCode    (TE.decodeUtf8 code)
+                setSession sessionUserId  (TE.decodeUtf8 userId)
+                setSession sessionToken   (TE.decodeUtf8 data_)
+                setSession sessionExpires (T.pack $ show exptime)
+                return token
+      Right (_, Just uid, Just oauth_token, Just expires) ->
         return $ FB.UserAccessToken uid oauth_token (toUTCTime expires)
-      Right (Just uid, Just code, _, _) -> lift $ do
-        -- TODO: Caching
-        FB.runFacebookT creds manager $
-          FB.getUserAccessTokenStep2 "" [("code", code)]
       Right (Nothing, _, _, _) ->
-        throwError "no user_id on signed request"
-      Right (_, _, _, _) ->
-        throwError "signed request has user_id but no code or oauth_token"
+        throwError "no user_id nor code on signed request"
       Left msg ->
         throwError ("never here (" ++ show msg ++ ")")
   where
@@ -421,3 +438,8 @@ getUserAccessToken =
 
     toUTCTime :: Integer -> TI.UTCTime
     toUTCTime = TI.posixSecondsToUTCTime . fromIntegral
+
+    sessionCode    = "_FBCSC"
+    sessionUserId  = "_FBCSI"
+    sessionToken   = "_FBCSA"
+    sessionExpires = "_FBCSE"
