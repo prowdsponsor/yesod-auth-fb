@@ -16,6 +16,20 @@ Description:
   with Facebook as your backend.  That is, your site's users will
   log in to your site through Facebook.  Your application need to
   be registered on Facebook.
+  .
+  This package works with both the server-side authentication
+  flow
+  (<https://developers.facebook.com/docs/authentication/server-side/>)
+  via the "Yesod.Auth.Facebook.ServerSide" module and the
+  client-side authentication
+  (<https://developers.facebook.com/docs/authentication/client-side/>)
+  via the "Yesod.Auth.Facebook.ClientSide" module.  It's up to
+  you to decide which one to use.  The server-side code is older
+  and as such has been through a lot more testing than the
+  client-side code.  The client-side code, however, allows you to
+  use some features that are available only to the Facebook JS
+  SDK (such as automatically logging your users in, see
+  <https://developers.facebook.com/blog/post/2012/05/08/how-to--improve-the-experience-for-returning-users/>).
 
 Source-repository head
   type:     git
@@ -48,6 +62,7 @@ Library
 
   Exposed-modules: Yesod.Auth.Facebook
                  , Yesod.Auth.Facebook.ClientSide
+                 , Yesod.Auth.Facebook.ServerSide
   Extensions: GADTs QuasiQuotes CPP OverloadedStrings
   GHC-options: -Wall
   Include-dirs: include
