@@ -25,7 +25,6 @@ module Yesod.Auth.Facebook.ClientSide
     , getUserAccessToken
 
       -- * Advanced
-    , beta_authFacebookClientSide
     , signedRequestCookieName
     ) where
 
@@ -334,25 +333,9 @@ getFbCredentials = fbCredentials <$> getYesod
 -- authentication flow.
 --
 -- You /MUST/ use 'facebookJSSDK' as its documentation states.
-authFacebookClientSide
-  :: YesodAuthFbClientSide master
-  => AuthPlugin master
-authFacebookClientSide = authFacebookClientSideHelper False
-
-
--- | Same as 'authFacebookClientSide', but uses Facebook's beta tier.
--- Usually this is /not/ what you want, so use 'authFacebook'
--- unless you know what you're doing.
-beta_authFacebookClientSide :: YesodAuthFbClientSide master
-                            => AuthPlugin master
-beta_authFacebookClientSide = authFacebookClientSideHelper True
-
-
--- | Helper function for 'authFacebook' and 'beta_authFacebook'.
-authFacebookClientSideHelper :: YesodAuthFbClientSide master
-                             => Bool -- ^ @useBeta@
-                             -> AuthPlugin master
-authFacebookClientSideHelper useBeta =
+authFacebookClientSide :: YesodAuthFbClientSide master
+                       => AuthPlugin master
+authFacebookClientSide =
     AuthPlugin "fbcs" dispatch login
   where
     dispatch "GET" ["login"] = do
