@@ -5,7 +5,7 @@
 module Yesod.Auth.Facebook.ClientSide
     ( -- * Authentication plugin
       authFacebookClientSide
-    , YesodAuthFbClientSide
+    , YesodAuthFbClientSide(..)
 
       -- * Widgets
     , facebookJSSDK
