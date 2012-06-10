@@ -307,7 +307,7 @@ authFacebookClientSide
 authFacebookClientSide = authFacebookClientSideHelper False
 
 
--- | Same as 'authFacebook', but uses Facebook's beta tier.
+-- | Same as 'authFacebookClientSide', but uses Facebook's beta tier.
 -- Usually this is /not/ what you want, so use 'authFacebook'
 -- unless you know what you're doing.
 beta_authFacebookClientSide :: YesodAuthFbClientSide master
