@@ -63,7 +63,7 @@ import qualified Yesod.Auth.Message as Msg
 --     \<head\>
 --       ...
 --     \<body\>
---       ^{facebookJSSDK}
+--       ^{facebookJSSDK AuthR}
 --       ...
 -- @
 --
@@ -71,13 +71,17 @@ import qualified Yesod.Auth.Message as Msg
 -- anywhere else on the body.  If you absolutely need to do so,
 -- avoid any elements placed with @position: relative@ or
 -- @position: absolute@.
-facebookJSSDK :: YesodAuthFbClientSide master => GWidget sub master ()
-facebookJSSDK = do
+facebookJSSDK :: YesodAuthFbClientSide master =>
+                 (Route Auth -> Route master)
+              -> GWidget sub master ()
+facebookJSSDK toMaster = do
   (lang, fbInitOpts, muid) <-
     lift $ (,,) <$> getFbLanguage
                 <*> getFbInitOpts
                 <*> maybeAuthId
-  let loggedIn = maybe "false" (const "true") muid
+  let loggedIn = maybe ("false" :: Text) (const "true") muid
+      loginRoute  = toMaster $ PluginR "fbcs" ["login"]
+      logoutRoute = toMaster $ LogoutR
   [whamlet|
     <div #fb-root>
    |]
@@ -106,7 +110,7 @@ facebookJSSDK = do
             // Facebook says the user is logged in.
             if (!loggedIn) {
               // But he is not logged in on our site.
-              // TODO: Log the user in.
+              window.location.href = '@{loginRoute}';
             }
           } else {
             // User is not logged in.
@@ -116,7 +120,7 @@ facebookJSSDK = do
               // that we're always going to log the user out of
               // the site if he has logged in via another
               // Yesod authentication plugin.
-              // TODO: Log the user out.
+              window.location.href = '@{logoutRoute}';
             }
           }
         }
@@ -349,81 +353,21 @@ authFacebookClientSideHelper :: YesodAuthFbClientSide master
                              => Bool -- ^ @useBeta@
                              -> AuthPlugin master
 authFacebookClientSideHelper useBeta =
-    AuthPlugin "fb-clientside" dispatch login
+    AuthPlugin "fbcs" dispatch login
   where
-    dispatch = undefined
-
-{- TODO
-    -- Run a Facebook action.
-    runFB :: YesodAuth master =>
-             FB.FacebookT FB.Auth (C.ResourceT IO) a
-          -> GHandler sub master a
-    runFB act = do
-      manager <- authHttpManager <$> getYesod
-      liftIO $ C.runResourceT $
-        (if useBeta then FB.beta_runFacebookT else FB.runFacebookT)
-        creds manager act
-
-    -- Get the URL in facebook.com where users are redirected to.
-    getRedirectUrl :: YesodAuth master =>
-                      (Route Auth -> Route master)
-                   -> GHandler sub master Text
-    getRedirectUrl tm = do
-        render  <- getUrlRender
-        let proceedUrl = render (tm proceedR)
-        runFB $ FB.getUserAccessTokenStep1 proceedUrl perms
-    proceedR = PluginR "fb" ["proceed"]
-
-    -- Redirect the user to Facebook.
     dispatch "GET" ["login"] = do
-        m <- getYesod
-        when (redirectToReferer m) setUltDestReferer
-        redirect =<< getRedirectUrl =<< getRouteToMaster
-    -- Take Facebook's code and finish authentication.
-    dispatch "GET" ["proceed"] = do
-        tm     <- getRouteToMaster
-        render <- getUrlRender
-        query  <- queryString <$> waiRequest
-        let proceedUrl = render (tm proceedR)
-            query' = [(a,b) | (a, Just b) <- query]
-        token <- runFB $ FB.getUserAccessTokenStep2 proceedUrl query'
-        setUserAccessToken token
-        setCreds True (createCreds token)
-    -- Logout the user from our site and from Facebook.
+      mtoken <- getUserAccessToken
+      case mtoken of
+        Just token -> setCreds True (createCreds token)
+        Nothing -> fail "authFacebookClientSide: tried to login without user access token."
     dispatch "GET" ["logout"] = do
-        m      <- getYesod
-        tm     <- getRouteToMaster
-        mtoken <- getUserAccessToken
-        when (redirectToReferer m) setUltDestReferer
-
-        -- Facebook doesn't redirect back to our chosen address
-        -- when the user access token is invalid, so we need to
-        -- check its validity before anything else.
-        valid <- maybe (return False) (runFB . FB.isValid) mtoken
-
-        case (valid, mtoken) of
-          (True, Just token) -> do
-            render <- getUrlRender
-            dest <- runFB $ FB.getUserLogoutUrl token (render $ tm $ PluginR "fb" ["kthxbye"])
-            redirect dest
-          _ -> dispatch "GET" ["kthxbye"]
-    -- Finish the logout procedure.  Unfortunately we have to
-    -- replicate yesod-auth's postLogoutR code here since it's
-    -- not accessible for us.  We also can't just redirect to
-    -- LogoutR since it would otherwise call setUltDestReferrer
-    -- again.
-    dispatch "GET" ["kthxbye"] = do
         m <- getYesod
         deleteSession "_ID"
-        deleteSession "_FBID"
-        deleteSession "_FBAT"
-        deleteSession "_FBET"
         onLogout
         redirectUltDest $ logoutDest m
     -- Anything else gives 404
     dispatch _ _ = notFound
 
--}
     -- Small widget for multiple login websites.
     login :: YesodAuth master =>
              (Route Auth -> Route master)
@@ -439,7 +383,7 @@ authFacebookClientSideHelper useBeta =
 -- | Create an @yesod-auth@'s 'Creds' for a given
 -- @'FB.UserAccessToken'@.
 createCreds :: FB.UserAccessToken -> Creds m
-createCreds (FB.UserAccessToken userId _ _) = Creds "fb" id_ []
+createCreds (FB.UserAccessToken userId _ _) = Creds "fbcs" id_ []
     where id_ = "http://graph.facebook.com/" `mappend` TE.decodeUtf8 userId
 
 
