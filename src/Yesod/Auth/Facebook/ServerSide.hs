@@ -12,6 +12,7 @@ module Yesod.Auth.Facebook.ServerSide
 
       -- * Advanced
     , beta_authFacebook
+    , deleteUserAccessToken
     ) where
 
 import Control.Applicative ((<$>))
@@ -135,9 +136,7 @@ authFacebookHelper useBeta creds perms = AuthPlugin "fb" dispatch login
     dispatch "GET" ["kthxbye"] = do
         m <- getYesod
         deleteSession "_ID"
-        deleteSession "_FBID"
-        deleteSession "_FBAT"
-        deleteSession "_FBET"
+        deleteUserAccessToken
         onLogout
         redirectUltDest $ logoutDest m
     -- Anything else gives 404
@@ -186,3 +185,12 @@ getUserAccessToken = runMaybeT $ do
   return $ FB.UserAccessToken (TE.encodeUtf8 userId)
                               (TE.encodeUtf8 data_)
                               (read $ T.unpack exptime)
+
+
+-- | Delete Facebook's user access token from the session.  /Do/
+-- /not use/ this function unless you know what you're doing.
+deleteUserAccessToken :: GHandler sub master ()
+deleteUserAccessToken = do
+  deleteSession "_FBID"
+  deleteSession "_FBAT"
+  deleteSession "_FBET"

@@ -23,6 +23,7 @@ module Yesod.Auth.Facebook.ClientSide
       -- * Advanced
     , beta_authFacebookClientSide
     , getSignedRequestCookieName
+    , FBSS.deleteUserAccessToken
     ) where
 
 import Control.Applicative ((<$>), (<*>))
