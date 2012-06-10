@@ -1,5 +1,6 @@
 -- | @yesod-auth@ authentication plugin using Facebook's
--- client-side authentication flow.
+-- client-side authentication flow.  You may see a demo at
+-- <https://github.com/meteficha/yesod-auth-fb/blob/master/demo/clientside.hs>.
 --
 -- /WARNING:/ Currently this authentication plugin /does not/
 -- work with other authentication plugins.  If you need many

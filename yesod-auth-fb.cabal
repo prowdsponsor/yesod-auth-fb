@@ -9,7 +9,7 @@ Maintainer:          Felipe Lessa <felipe.lessa@gmail.com>
 Category:            Web
 Build-type:          Simple
 Cabal-version:       >= 1.6
-Extra-source-files:  include/qq.h, README
+Extra-source-files:  README, demo/clientside.hs
 
 Description:
   This package allows you to use Yesod's authentication framework
