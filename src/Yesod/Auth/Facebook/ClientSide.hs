@@ -425,7 +425,7 @@ authFacebookClientSide =
           -> GWidget sub master ()
     login _ = [whamlet|
                  <p>
-                   <a href="#{facebookLogin perms}">
+                   <a href="#" onclick="#{facebookLogin perms}">
                      _{Msg.Facebook}
               |]
       where perms = []
