@@ -374,6 +374,8 @@ authFacebookClientSide =
     -- Login route used when successfully logging in.  Called via
     -- AJAX by JavaScript code on 'facebookJSSDK'.
     dispatch "GET" ["login"] = do
+      y <- getYesod
+      when (redirectToReferer y) setUltDestReferer
       etoken <- getUserAccessToken
       case etoken of
         Right token -> setCreds True (createCreds token)
