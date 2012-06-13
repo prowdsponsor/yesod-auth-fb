@@ -42,6 +42,7 @@ import Yesod.Content
 import Yesod.Handler
 import Yesod.Request
 import Yesod.Widget
+import qualified Control.Exception.Lifted as E
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import qualified Data.Text as T
@@ -402,11 +403,11 @@ getUserAccessToken =
                 <*> parsed A..:? "user_id"
                 <*> parsed A..:? "oauth_token"
                 <*> parsed A..:? "expires") of
-      Right (Just code, _, _, _) -> lift $ do
+      Right (Just code, _, _, _) -> do
         -- We have to exchange the code for the access token.
-        moldCode <- lookupSession sessionCode
+        moldCode <- lift $ lookupSession sessionCode
         case moldCode of
-          Just code' | code == TE.encodeUtf8 code' -> do
+          Just code' | code == TE.encodeUtf8 code' -> lift $ do
             -- We have a cached token for this code.
             Just userId  <- lookupSession sessionUserId
             Just data_   <- lookupSession sessionToken
@@ -416,10 +417,16 @@ getUserAccessToken =
                                         (read $ T.unpack exptime)
           _ -> do
             -- Get access token from Facebook.
-            token <- FB.runFacebookT creds manager $
+            let fbErrorMsg :: FB.FacebookException -> String
+                fbErrorMsg exc = "getUserAccessToken: getUserAccessTokenStep2 " ++
+                                 "failed with " ++ show exc
+            token <- ErrorT $
+                     fmap (either (Left . fbErrorMsg) Right) $
+                     E.try $
+                     FB.runFacebookT creds manager $
                      FB.getUserAccessTokenStep2 "" [("code", code)]
             case token of
-              FB.UserAccessToken userId data_ exptime -> do
+              FB.UserAccessToken userId data_ exptime -> lift $ do
                 -- Save it for later.
                 setSession sessionCode    (TE.decodeUtf8 code)
                 setSession sessionUserId  (TE.decodeUtf8 userId)
@@ -429,9 +436,9 @@ getUserAccessToken =
       Right (_, Just uid, Just oauth_token, Just expires) ->
         return $ FB.UserAccessToken uid oauth_token (toUTCTime expires)
       Right (Nothing, _, _, _) ->
-        throwError "no user_id nor code on signed request"
+        throwError "getUserAccessToken: no user_id nor code on signed request"
       Left msg ->
-        throwError ("never here (" ++ show msg ++ ")")
+        throwError ("getUserAccessToken: never here (" ++ show msg ++ ")")
   where
     toErrorT :: Functor m => String -> m (Maybe a) -> ErrorT String m a
     toErrorT msg = ErrorT . fmap (maybe (Left ("getUserAccessToken: " ++ msg)) Right)
