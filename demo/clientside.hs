@@ -69,6 +69,9 @@ getHomeR = do
             <button onclick="#{facebookLogin perms}">
               Login
           <p>
+            <a href="@{AuthR $ facebookForceLoginR perms}">
+              Force login route (avoid this in your code when possible).
+          <p>
             <button onclick="#{facebookLogout}">
               Logout
     |]

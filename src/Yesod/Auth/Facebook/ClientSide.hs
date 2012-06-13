@@ -16,6 +16,7 @@ module Yesod.Auth.Facebook.ClientSide
       -- * Widgets
     , facebookJSSDK
     , facebookLogin
+    , facebookForceLoginR
     , facebookLogout
     , JavaScriptCall
 
@@ -30,18 +31,19 @@ module Yesod.Auth.Facebook.ClientSide
     ) where
 
 import Control.Applicative ((<$>), (<*>))
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Error (ErrorT(..), throwError)
 import Data.ByteString (ByteString)
 import Data.Monoid (mappend, mempty)
+import Data.String (fromString)
 import Data.Text (Text)
 import System.Locale (defaultTimeLocale)
+import Text.Hamlet (hamlet)
 import Text.Julius (JavascriptUrl, julius)
 import Yesod.Auth
 import Yesod.Content
-import Yesod.Handler
-import Yesod.Request
-import Yesod.Widget
+import Yesod.Core
 import qualified Control.Exception.Lifted as E
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
@@ -53,6 +55,11 @@ import qualified Data.Time.Clock.POSIX as TI
 import qualified Facebook as FB
 import qualified Yesod.Auth.Message as Msg
 -- import qualified Data.Conduit as C
+
+
+-- | Internal function.  Construct a route to our plugin.
+fbcsR :: [Text] -> Route Auth
+fbcsR = PluginR "fbcs"
 
 
 -- | Hamlet that should be spliced /right after/ the @<body>@ tag
@@ -81,7 +88,7 @@ facebookJSSDK toMaster = do
                 <*> getFbInitOpts
                 <*> maybeAuthId
   let loggedIn = maybe ("false" :: Text) (const "true") muid
-      loginRoute  = toMaster $ PluginR "fbcs" ["login"]
+      loginRoute  = toMaster $ fbcsR ["login"]
       logoutRoute = toMaster $ LogoutR
       fbInitOpts  = A.object $ map (uncurry (A..=)) fbInitOptsList
   [whamlet|
@@ -150,9 +157,30 @@ facebookLogin :: [FB.Permission] -> JavaScriptCall
 facebookLogin [] = "FB.login(function () {})"
 facebookLogin perms =
   T.concat [ "FB.login(function () {}, {scope: '"
-           , T.intercalate "," (map FB.unPermission perms)
+           , joinPermissions perms
            , "'})"
            ]
+
+
+-- | Route that forces the user to log in.  You should avoid
+-- using this route whenever possible, using 'facebookLogin' is
+-- much better (after all, this module is for client-side
+-- authentication).  However, you may want to use it at least for
+-- 'authRoute', e.g.:
+--
+-- @
+-- instance 'Yesod' MyFoundation where
+--   ...
+--   'authRoute' _ = Just $ AuthR (facebookForceLoginR [])
+-- @
+facebookForceLoginR :: [FB.Permission] -> Route Auth
+facebookForceLoginR perms = fbcsR ["login", "go", joinPermissions perms]
+
+
+-- | Internal function.  Joins a list of 'FB.Permission'@s@ into
+-- a format that Facebook recognizes.
+joinPermissions :: [FB.Permission] -> Text
+joinPermissions = T.intercalate "," . map FB.unPermission
 
 
 -- | JavaScript function that should be called in order to logout
@@ -341,12 +369,54 @@ authFacebookClientSide :: YesodAuthFbClientSide master
 authFacebookClientSide =
     AuthPlugin "fbcs" dispatch login
   where
+    dispatch :: YesodAuthFbClientSide master =>
+                Text -> [Text] -> GHandler Auth master ()
+    -- Login route used when successfully logging in.  Called via
+    -- AJAX by JavaScript code on 'facebookJSSDK'.
     dispatch "GET" ["login"] = do
       etoken <- getUserAccessToken
       case etoken of
         Right token -> setCreds True (createCreds token)
         Left msg -> fail msg
-    -- Anything else gives 404
+
+    -- Login routes used to forcefully require the user to login.
+    dispatch "GET" ["login", "go"] = dispatch "GET" ["login", "go", ""]
+    dispatch "GET" ["login", "go", perms] = do
+      -- Redirect the user to the server-side flow login url.
+      y  <- getYesod
+      ur <- getUrlRender
+      tm <- getRouteToMaster
+      when (redirectToReferer y) setUltDestReferer
+      let creds      = fbCredentials y
+          manager    = authHttpManager y
+          redirectTo = ur $ tm $ fbcsR ["login", "back"]
+          uncommas "" = []
+          uncommas xs = case break (== ',') xs of
+                          (x', ',':xs') -> x' : uncommas xs'
+                          (x', _)       -> [x']
+      url <- FB.runFacebookT creds manager $
+             FB.getUserAccessTokenStep1 redirectTo $
+               map fromString $ uncommas $ T.unpack perms
+      redirect url
+    dispatch "GET" ["login", "back"] = do
+      -- Instead of going on with the server-side flow, use the
+      -- client-side JS to finish the authentication.
+      tm <- getRouteToMaster
+      mr <- getMessageRender
+      fbjssdkpc <- widgetToPageContent (facebookJSSDK tm)
+      rephtml <- hamletToRepHtml $ [hamlet|
+        $doctype 5
+        <html>
+          <head>
+            <title>#{mr Msg.LoginTitle}
+            ^{pageHead fbjssdkpc}
+          <body>
+            ^{pageBody fbjssdkpc}
+        |]
+      sendResponse rephtml
+
+
+    -- Everything else gives 404
     dispatch _ _ = notFound
 
     -- Small widget for multiple login websites.

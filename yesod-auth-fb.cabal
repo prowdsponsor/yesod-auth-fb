@@ -1,5 +1,5 @@
 Name:                yesod-auth-fb
-Version:             1.0.3
+Version:             1.0.4
 Synopsis:            Authentication backend for Yesod using Facebook.
 Homepage:            https://github.com/meteficha/yesod-auth-fb
 License:             BSD3
@@ -46,6 +46,7 @@ Library
                  , lifted-base  == 0.1.*
                  , yesod-core   >= 1.0     && < 1.1
                  , yesod-auth   >= 1.0     && < 1.1
+                 , hamlet
                  , shakespeare-js
                  , wai
                  , http-conduit
