@@ -477,16 +477,14 @@ getUserAccessToken =
                 <*> parsed A..:? "expires") of
       Right (Just code, _, _, _) -> do
         -- We have to exchange the code for the access token.
-        moldCode <- lift $ lookupSession sessionCode
+        moldCode <- lift $ lookupSessionBS sessionCode
         case moldCode of
-          Just code' | code == TE.encodeUtf8 code' -> lift $ do
+          Just code' | code == code' -> lift $ do
             -- We have a cached token for this code.
-            Just userId  <- lookupSession sessionUserId
-            Just data_   <- lookupSession sessionToken
-            Just exptime <- lookupSession sessionExpires
-            return $ FB.UserAccessToken (TE.encodeUtf8 userId)
-                                        (TE.encodeUtf8 data_)
-                                        (read $ T.unpack exptime)
+            Just userId  <- lookupSessionBS sessionUserId
+            Just data_   <- lookupSessionBS sessionToken
+            Just exptime <- lookupSession   sessionExpires
+            return $ FB.UserAccessToken userId data_ (read $ T.unpack exptime)
           _ -> do
             -- Get access token from Facebook.
             let fbErrorMsg :: FB.FacebookException -> String
@@ -500,10 +498,10 @@ getUserAccessToken =
             case token of
               FB.UserAccessToken userId data_ exptime -> lift $ do
                 -- Save it for later.
-                setSession sessionCode    (TE.decodeUtf8 code)
-                setSession sessionUserId  (TE.decodeUtf8 userId)
-                setSession sessionToken   (TE.decodeUtf8 data_)
-                setSession sessionExpires (T.pack $ show exptime)
+                setSessionBS sessionCode    code
+                setSessionBS sessionUserId  userId
+                setSessionBS sessionToken   data_
+                setSession   sessionExpires (T.pack $ show exptime)
                 return token
       Right (_, Just uid, Just oauth_token, Just expires) ->
         return $ FB.UserAccessToken uid oauth_token (toUTCTime expires)
@@ -518,7 +516,7 @@ getUserAccessToken =
     toUTCTime :: Integer -> TI.UTCTime
     toUTCTime = TI.posixSecondsToUTCTime . fromIntegral
 
-    sessionCode    = "_FBCSC"
-    sessionUserId  = "_FBCSI"
-    sessionToken   = "_FBCSA"
+    sessionCode    = "_FBCSD"
+    sessionUserId  = "_FBCSU"
+    sessionToken   = "_FBCST"
     sessionExpires = "_FBCSE"
