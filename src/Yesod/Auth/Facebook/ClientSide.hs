@@ -378,14 +378,12 @@ authFacebookClientSide =
       ur <- getUrlRender
       tm <- getRouteToMaster
       when (redirectToReferer y) setUltDestReferer
-      let creds      = YF.fbCredentials y
-          manager    = authHttpManager  y
-          redirectTo = ur $ tm $ fbcsR ["login", "back"]
+      let redirectTo = ur $ tm $ fbcsR ["login", "back"]
           uncommas "" = []
           uncommas xs = case break (== ',') xs of
                           (x', ',':xs') -> x' : uncommas xs'
                           (x', _)       -> [x']
-      url <- FB.runFacebookT creds manager $
+      url <- YF.runFacebookT $
              FB.getUserAccessTokenStep1 redirectTo $
                map fromString $ uncommas $ T.unpack perms
       redirect url
@@ -453,12 +451,10 @@ getUserAccessToken :: YesodAuthFbClientSide master =>
                       GHandler sub master (Either String FB.UserAccessToken)
 getUserAccessToken =
   runErrorT $ do
-    y <- lift getYesod
-    let creds   = YF.fbCredentials y
-        manager = authHttpManager  y
+    creds <- lift YF.getFbCredentials
     unparsed <- toErrorT "cookie not found" $ lookupCookie (signedRequestCookieName creds)
     A.Object parsed <- toErrorT "cannot parse signed request" $
-                       FB.runFacebookT creds manager $
+                       YF.runFacebookT $
                        FB.parseSignedRequest (TE.encodeUtf8 unparsed)
     case (flip A.parseEither () $ const $
           (,,,) <$> parsed A..:? "code"
@@ -483,7 +479,7 @@ getUserAccessToken =
             token <- ErrorT $
                      fmap (either (Left . fbErrorMsg) Right) $
                      E.try $
-                     FB.runFacebookT creds manager $
+                     YF.runFacebookT $
                      FB.getUserAccessTokenStep2 "" [("code", code)]
             case token of
               FB.UserAccessToken userId data_ exptime -> lift $ do
