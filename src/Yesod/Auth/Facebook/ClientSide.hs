@@ -22,7 +22,6 @@ module Yesod.Auth.Facebook.ClientSide
 
       -- * Useful functions
     , serveChannelFile
-    , getFbCredentials
     , defaultFbInitOpts
     , getUserAccessToken
 
@@ -53,6 +52,7 @@ import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Data.Time as TI
 import qualified Data.Time.Clock.POSIX as TI
 import qualified Facebook as FB
+import qualified Yesod.Facebook as YF
 import qualified Yesod.Auth.Message as Msg
 -- import qualified Data.Conduit as C
 
@@ -211,13 +211,9 @@ type JavaScriptCall = Text
 -- | Type class that needs to be implemented in order to use
 -- 'authFacebookClientSide'.
 --
--- Minimal complete definition: 'fbCredentials' and
--- 'getFbChannelFile'.  (We recommend implementing
--- 'getFbLanguage' as well.)
-class YesodAuth master => YesodAuthFbClientSide master where
-  -- | Facebook 'FB.Credentials' for your app.
-  fbCredentials :: master -> FB.Credentials
-
+-- Minimal complete definition: 'getFbChannelFile'.  (We
+-- recommend implementing 'getFbLanguage' as well.)
+class (YesodAuth master, YF.YesodFacebook master) => YesodAuthFbClientSide master where
   -- | A route that serves Facebook's channel file in the /same/
   -- /subdomain/ as the current request's subdomain.
   --
@@ -304,7 +300,7 @@ class YesodAuth master => YesodAuthFbClientSide master where
 
 -- | Default implementation for 'getFbInitOpts'.  Defines:
 --
---  [@appId@] Using 'getFbCredentials'.
+--  [@appId@] Using 'YF.getFbCredentials'.
 --
 --  [@channelUrl@] Using 'getFbChannelFile'.
 --
@@ -316,7 +312,7 @@ defaultFbInitOpts :: YesodAuthFbClientSide master =>
                      GHandler sub master [(Text, A.Value)]
 defaultFbInitOpts = do
   ur <- getUrlRender
-  creds <- getFbCredentials
+  creds <- YF.getFbCredentials
   channelFile <- getFbChannelFile
   return [ ("appId",      A.toJSON $ TE.decodeUtf8 $ FB.appId creds)
          , ("channelUrl", A.toJSON $ ur channelFile)
@@ -353,13 +349,6 @@ channelFileContent = toContent val
         val = "<script src=\"//connect.facebook.net/en_US/all.js\"></script>"
 
 
--- | Returns Facebook's 'FB.Credentials' from inside a
--- 'GHandler'.  Just a convenience around 'fbCredentials'.
-getFbCredentials :: YesodAuthFbClientSide master =>
-                    GHandler sub master FB.Credentials
-getFbCredentials = fbCredentials <$> getYesod
-
-
 -- | Yesod authentication plugin using Facebook's client-side
 -- authentication flow.
 --
@@ -389,8 +378,8 @@ authFacebookClientSide =
       ur <- getUrlRender
       tm <- getRouteToMaster
       when (redirectToReferer y) setUltDestReferer
-      let creds      = fbCredentials y
-          manager    = authHttpManager y
+      let creds      = YF.fbCredentials y
+          manager    = authHttpManager  y
           redirectTo = ur $ tm $ fbcsR ["login", "back"]
           uncommas "" = []
           uncommas xs = case break (== ',') xs of
@@ -464,8 +453,9 @@ getUserAccessToken :: YesodAuthFbClientSide master =>
                       GHandler sub master (Either String FB.UserAccessToken)
 getUserAccessToken =
   runErrorT $ do
-    creds <- lift getFbCredentials
-    manager <- authHttpManager <$> lift getYesod
+    y <- lift getYesod
+    let creds   = YF.fbCredentials y
+        manager = authHttpManager  y
     unparsed <- toErrorT "cookie not found" $ lookupCookie (signedRequestCookieName creds)
     A.Object parsed <- toErrorT "cannot parse signed request" $
                        FB.runFacebookT creds manager $
