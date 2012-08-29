@@ -148,7 +148,7 @@ authFacebookHelper useBeta creds perms = AuthPlugin "fb" dispatch login
           -> GWidget sub master ()
     login tm = do
         redirectUrl <- lift (getRedirectUrl tm)
-        [whamlet|
+        [whamlet|$newline never
 <p>
     <a href="#{redirectUrl}">_{Msg.Facebook}
 |]

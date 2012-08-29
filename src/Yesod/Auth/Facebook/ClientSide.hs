@@ -91,7 +91,7 @@ facebookJSSDK toMaster = do
       loginRoute  = toMaster $ fbcsR ["login"]
       logoutRoute = toMaster $ LogoutR
       fbInitOpts  = A.object $ map (uncurry (A..=)) fbInitOptsList
-  [whamlet|
+  [whamlet|$newline never
     <div #fb-root>
    |]
   toWidgetBody [julius|
@@ -406,7 +406,7 @@ authFacebookClientSide =
       tm <- getRouteToMaster
       mr <- getMessageRender
       fbjssdkpc <- widgetToPageContent (facebookJSSDK tm)
-      rephtml <- hamletToRepHtml $ [hamlet|
+      rephtml <- hamletToRepHtml $ [hamlet|$newline never
         $doctype 5
         <html>
           <head>
@@ -425,7 +425,7 @@ authFacebookClientSide =
     login :: YesodAuth master =>
              (Route Auth -> Route master)
           -> GWidget sub master ()
-    login _ = [whamlet|
+    login _ = [whamlet|$newline never
                  <p>
                    <a href="#" onclick="#{facebookLogin perms}">
                      _{Msg.Facebook}
