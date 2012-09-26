@@ -53,7 +53,7 @@ Library
                  , yesod-fb     == 0.1.*
                  , fb           >= 0.11    && < 0.13
                  , conduit      == 0.5.*
-                 , bytestring   == 0.9.*
+                 , bytestring   >= 0.9     && < 0.11
                  , aeson        == 0.6.*
                  , time         >= 1.0     && < 1.5
                  , old-locale   == 1.0.*
