@@ -383,7 +383,7 @@ authFacebookClientSide =
           uncommas xs = case break (== ',') xs of
                           (x', ',':xs') -> x' : uncommas xs'
                           (x', _)       -> [x']
-      url <- YF.runFacebookT $
+      url <- YF.runYesodFbT $
              FB.getUserAccessTokenStep1 redirectTo $
                map fromString $ uncommas $ T.unpack perms
       redirect url
@@ -454,7 +454,7 @@ getUserAccessToken =
     creds <- lift YF.getFbCredentials
     unparsed <- toErrorT "cookie not found" $ lookupCookie (signedRequestCookieName creds)
     A.Object parsed <- toErrorT "cannot parse signed request" $
-                       YF.runFacebookT $
+                       YF.runYesodFbT $
                        FB.parseSignedRequest (TE.encodeUtf8 unparsed)
     case (flip A.parseEither () $ const $
           (,,,) <$> parsed A..:? "code"
@@ -479,7 +479,7 @@ getUserAccessToken =
             token <- ErrorT $
                      fmap (either (Left . fbErrorMsg) Right) $
                      E.try $
-                     YF.runFacebookT $
+                     YF.runYesodFbT $
                      FB.getUserAccessTokenStep2 "" [("code", code)]
             case token of
               FB.UserAccessToken userId data_ exptime -> lift $ do
