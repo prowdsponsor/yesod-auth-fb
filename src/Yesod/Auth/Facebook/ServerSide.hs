@@ -26,7 +26,6 @@ import Yesod.Auth
 import Yesod.Handler
 import Yesod.Widget
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
 import qualified Facebook as FB
 import qualified Yesod.Auth.Message as Msg
 import qualified Data.Conduit as C
@@ -157,8 +156,8 @@ authFacebookHelper useBeta creds perms = AuthPlugin "fb" dispatch login
 -- | Create an @yesod-auth@'s 'Creds' for a given
 -- @'FB.UserAccessToken'@.
 createCreds :: FB.UserAccessToken -> Creds m
-createCreds (FB.UserAccessToken userId _ _) = Creds "fb" id_ []
-    where id_ = "http://graph.facebook.com/" `mappend` TE.decodeUtf8 userId
+createCreds (FB.UserAccessToken (FB.Id userId) _ _) = Creds "fb" id_ []
+    where id_ = "http://graph.facebook.com/" `mappend` userId
 
 
 -- | Set the Facebook's user access token on the user's session.
@@ -166,9 +165,9 @@ createCreds (FB.UserAccessToken userId _ _) = Creds "fb" id_ []
 -- become handy together with 'FB.extendUserAccessToken'.
 setUserAccessToken :: FB.UserAccessToken
                    -> GHandler sub master ()
-setUserAccessToken (FB.UserAccessToken userId data_ exptime) = do
-  setSession "_FBID" (TE.decodeUtf8 userId)
-  setSession "_FBAT" (TE.decodeUtf8 data_)
+setUserAccessToken (FB.UserAccessToken (FB.Id userId) data_ exptime) = do
+  setSession "_FBID" userId
+  setSession "_FBAT" data_
   setSession "_FBET" (T.pack $ show exptime)
 
 
@@ -182,9 +181,7 @@ getUserAccessToken = runMaybeT $ do
   userId  <- MaybeT $ lookupSession "_FBID"
   data_   <- MaybeT $ lookupSession "_FBAT"
   exptime <- MaybeT $ lookupSession "_FBET"
-  return $ FB.UserAccessToken (TE.encodeUtf8 userId)
-                              (TE.encodeUtf8 data_)
-                              (read $ T.unpack exptime)
+  return $ FB.UserAccessToken (FB.Id userId) data_ (read $ T.unpack exptime)
 
 
 -- | Delete Facebook's user access token from the session.  /Do/

@@ -314,7 +314,7 @@ defaultFbInitOpts = do
   ur <- getUrlRender
   creds <- YF.getFbCredentials
   channelFile <- getFbChannelFile
-  return [ ("appId",      A.toJSON $ TE.decodeUtf8 $ FB.appId creds)
+  return [ ("appId",      A.toJSON $ FB.appId creds)
          , ("channelUrl", A.toJSON $ ur channelFile)
          , ("status",     A.toJSON True) -- Check login status.
          , ("cookie",     A.toJSON True) -- Enable cookie, extremely important.
@@ -423,13 +423,13 @@ authFacebookClientSide =
 -- | Create an @yesod-auth@'s 'Creds' for a given
 -- @'FB.UserAccessToken'@.
 createCreds :: FB.UserAccessToken -> Creds m
-createCreds (FB.UserAccessToken userId _ _) = Creds "fbcs" id_ []
-    where id_ = "http://graph.facebook.com/" `mappend` TE.decodeUtf8 userId
+createCreds (FB.UserAccessToken (FB.Id userId) _ _) = Creds "fbcs" id_ []
+    where id_ = "http://graph.facebook.com/" `mappend` userId
 
 
 -- | Cookie name with the signed request for the given credentials.
 signedRequestCookieName :: FB.Credentials -> Text
-signedRequestCookieName = T.append "fbsr_" . TE.decodeUtf8 . FB.appId
+signedRequestCookieName = T.append "fbsr_" . FB.appId
 
 
 -- | Get the Facebook's user access token from Facebook's cookie.
@@ -467,10 +467,10 @@ getUserAccessToken =
         case moldCode of
           Just code' | code == code' -> lift $ do
             -- We have a cached token for this code.
-            Just userId  <- lookupSessionBS sessionUserId
-            Just data_   <- lookupSessionBS sessionToken
-            Just exptime <- lookupSession   sessionExpires
-            return $ FB.UserAccessToken userId data_ (read $ T.unpack exptime)
+            Just userId  <- lookupSession sessionUserId
+            Just data_   <- lookupSession sessionToken
+            Just exptime <- lookupSession sessionExpires
+            return $ FB.UserAccessToken (FB.Id userId) data_ (read $ T.unpack exptime)
           _ -> do
             -- Get access token from Facebook.
             let fbErrorMsg :: FB.FacebookException -> String
@@ -485,8 +485,8 @@ getUserAccessToken =
               FB.UserAccessToken userId data_ exptime -> lift $ do
                 -- Save it for later.
                 setSessionBS sessionCode    code
-                setSessionBS sessionUserId  userId
-                setSessionBS sessionToken   data_
+                setSession   sessionUserId  (FB.idCode userId)
+                setSession   sessionToken   data_
                 setSession   sessionExpires (T.pack $ show exptime)
                 return token
       Right (_, Just uid, Just oauth_token, Just expires) ->
