@@ -41,7 +41,7 @@ Library
   hs-source-dirs: src
 
   Build-depends:   base         >= 4.3     && < 5
-                 , lifted-base  == 0.1.*
+                 , lifted-base  >= 0.1     && < 0.3
                  , yesod-core   == 1.1.*
                  , yesod-auth   == 1.1.*
                  , hamlet
