@@ -39,7 +39,7 @@ import Data.String (fromString)
 import Data.Text (Text)
 import System.Locale (defaultTimeLocale)
 import Text.Hamlet (hamlet)
-import Text.Julius (JavascriptUrl, julius)
+import Text.Julius (JavascriptUrl, julius, rawJS)
 import Yesod.Auth
 import Yesod.Content
 import Yesod.Core
@@ -48,7 +48,6 @@ import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
-import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Data.Time as TI
 import qualified Data.Time.Clock.POSIX as TI
 import qualified Facebook as FB
@@ -87,7 +86,7 @@ facebookJSSDK toMaster = do
     lift $ (,,) <$> getFbLanguage
                 <*> getFbInitOpts
                 <*> maybeAuthId
-  let loggedIn = maybe ("false" :: Text) (const "true") muid
+  let loggedIn = maybe False (const True) muid
       loginRoute  = toMaster $ fbcsR ["login"]
       logoutRoute = toMaster $ LogoutR
       fbInitOpts  = A.object $ map (uncurry (A..=)) fbInitOptsList
@@ -100,20 +99,20 @@ facebookJSSDK toMaster = do
        var js, id = 'facebook-jssdk', ref = d.getElementsByTagName('script')[0];
        if (d.getElementById(id)) {return;}
        js = d.createElement('script'); js.id = id; js.async = true;
-       js.src = "//connect.facebook.net/#{lang}/all.js";
+       js.src = "//connect.facebook.net/#{rawJS lang}/all.js";
        ref.parentNode.insertBefore(js, ref);
      }(document));
 
     // Init the SDK upon load
     window.fbAsyncInit = function() {
-      FB.init(#{TLE.decodeUtf8 $ A.encode fbInitOpts});
+      FB.init(#{A.toJSON fbInitOpts});
       ^{fbAsyncInitJs}
 
       // Subscribe to statusChange event.
       FB.Event.subscribe("auth.statusChange", function (response) {
         if (response) {
           // If the user is logged in on our site or not.
-          var loggedIn = #{loggedIn};
+          var loggedIn = #{A.toJSON loggedIn};
 
           if (response.status === 'connected') {
             // Facebook says the user is logged in.
