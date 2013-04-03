@@ -26,7 +26,7 @@ module Yesod.Auth.Facebook.ClientSide
 
       -- * Access tokens
     , extractCredsAccessToken
-    , getUserAccessToken
+    , getUserAccessTokenFromFbCookie
 
       -- * Advanced
     , signedRequestCookieName
@@ -367,7 +367,7 @@ authFacebookClientSide =
     dispatch "GET" ["login"] = do
       y <- getYesod
       when (redirectToReferer y) setUltDestReferer
-      etoken <- getUserAccessToken
+      etoken <- getUserAccessTokenFromFbCookie
       case etoken of
         Right token -> setCreds True (createCreds token)
         Left msg -> fail msg
@@ -471,17 +471,18 @@ signedRequestCookieName = T.append "fbsr_" . FB.appId
 -- in).  Note that the returned access token may have expired, we
 -- recommend using 'FB.hasExpired' and 'FB.isValid'.
 --
--- This 'getUserAccessToken' is completely different from the one
--- from the "Yesod.Auth.Facebook.ServerSide" module.  This one
--- does not use only the session, which means that (a) it's somewhat
--- slower because everytime you call this 'getUserAccessToken' it
--- needs to reverify the cookie, but (b) it is always up-to-date
--- with the latest cookie that the Facebook JS SDK has given us
--- and (c) avoids duplicating the information from the cookie
--- into the session.
-getUserAccessToken :: YesodAuthFbClientSide master =>
-                      GHandler sub master (Either String FB.UserAccessToken)
-getUserAccessToken =
+-- This 'getUserAccessTokenFromFbCookie' is completely different
+-- from the one from the "Yesod.Auth.Facebook.ServerSide" module.
+-- This one does not use only the session, which means that (a)
+-- it's somewhat slower because everytime you call this
+-- 'getUserAccessTokenFromFbCookie' it needs to reverify the
+-- cookie, but (b) it is always up-to-date with the latest cookie
+-- that the Facebook JS SDK has given us and (c) avoids
+-- duplicating the information from the cookie into the session.
+getUserAccessTokenFromFbCookie ::
+  YesodAuthFbClientSide master =>
+  GHandler sub master (Either String FB.UserAccessToken)
+getUserAccessTokenFromFbCookie =
   runErrorT $ do
     creds <- lift YF.getFbCredentials
     unparsed <- toErrorT "cookie not found" $ lookupCookie (signedRequestCookieName creds)
@@ -506,7 +507,7 @@ getUserAccessToken =
           _ -> do
             -- Get access token from Facebook.
             let fbErrorMsg :: FB.FacebookException -> String
-                fbErrorMsg exc = "getUserAccessToken: getUserAccessTokenStep2 " ++
+                fbErrorMsg exc = "getUserAccessTokenFromFbCookie: getUserAccessTokenStep2 " ++
                                  "failed with " ++ show exc
             token <- ErrorT $
                      fmap (either (Left . fbErrorMsg) Right) $
@@ -524,12 +525,12 @@ getUserAccessToken =
       Right (_, Just uid, Just oauth_token, Just expires) ->
         return $ FB.UserAccessToken uid oauth_token (toUTCTime expires)
       Right (Nothing, _, _, _) ->
-        throwError "getUserAccessToken: no user_id nor code on signed request"
+        throwError "getUserAccessTokenFromFbCookie: no user_id nor code on signed request"
       Left msg ->
-        throwError ("getUserAccessToken: never here (" ++ show msg ++ ")")
+        throwError ("getUserAccessTokenFromFbCookie: never here (" ++ show msg ++ ")")
   where
     toErrorT :: Functor m => String -> m (Maybe a) -> ErrorT String m a
-    toErrorT msg = ErrorT . fmap (maybe (Left ("getUserAccessToken: " ++ msg)) Right)
+    toErrorT msg = ErrorT . fmap (maybe (Left ("getUserAccessTokenFromFbCookie: " ++ msg)) Right)
 
     toUTCTime :: Integer -> TI.UTCTime
     toUTCTime = TI.posixSecondsToUTCTime . fromIntegral
