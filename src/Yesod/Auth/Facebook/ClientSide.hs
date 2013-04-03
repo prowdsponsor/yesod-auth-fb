@@ -40,8 +40,8 @@ import Data.ByteString (ByteString)
 import Data.Monoid (mappend, mempty)
 import Data.String (fromString)
 import Data.Text (Text)
+import Network.Wai (queryString)
 import System.Locale (defaultTimeLocale)
-import Text.Hamlet (hamlet)
 import Text.Julius (JavascriptUrl, julius, rawJS)
 import Yesod.Auth
 import Yesod.Content
@@ -56,7 +56,6 @@ import qualified Data.Time.Clock.POSIX as TI
 import qualified Facebook as FB
 import qualified Yesod.Facebook as YF
 import qualified Yesod.Auth.Message as Msg
--- import qualified Data.Conduit as C
 
 
 -- | Internal function.  Construct a route to our plugin.
@@ -390,22 +389,19 @@ authFacebookClientSide =
                map fromString $ uncommas $ T.unpack perms
       redirect url
     dispatch "GET" ["login", "back"] = do
-      -- Instead of going on with the server-side flow, use the
-      -- client-side JS to finish the authentication.
+      -- We used to use the client-side flow to finish the
+      -- authentication.  The advantage was simplifying the rest
+      -- of the code which didn't need to know about the use of
+      -- the server-side flow above.  However, this was very
+      -- flimsy and sometimes the user landed on a blank page due
+      -- to race conditions.
+      ur <- getUrlRender
       tm <- getRouteToMaster
-      mr <- getMessageRender
-      fbjssdkpc <- widgetToPageContent (facebookJSSDK tm)
-      rephtml <- hamletToRepHtml $ [hamlet|$newline never
-        $doctype 5
-        <html>
-          <head>
-            <title>#{mr Msg.LoginTitle}
-            ^{pageHead fbjssdkpc}
-          <body>
-            ^{pageBody fbjssdkpc}
-        |]
-      sendResponse rephtml
-
+      query <- queryString <$> waiRequest
+      let proceedUrl = ur $ tm $ fbcsR ["login", "back"]
+          query' = [(a,b) | (a, Just b) <- query]
+      token <- YF.runYesodFbT $ FB.getUserAccessTokenStep2 proceedUrl query'
+      setCreds True (createCreds token)
 
     -- Everything else gives 404
     dispatch _ _ = notFound
@@ -431,7 +427,7 @@ createCreds at@(FB.UserAccessToken (FB.Id userId) _ _) =
 
 
 -- | Get the user access token from a 'Creds' created by this
--- backend.
+-- backend.  This function should be used on 'getAuthId'.
 extractCredsAccessToken :: Creds m -> Maybe FB.UserAccessToken
 extractCredsAccessToken (Creds "fbcs" _ extra) = textToAt extra
 extractCredsAccessToken _                      = Nothing
@@ -479,6 +475,18 @@ signedRequestCookieName = T.append "fbsr_" . FB.appId
 -- cookie, but (b) it is always up-to-date with the latest cookie
 -- that the Facebook JS SDK has given us and (c) avoids
 -- duplicating the information from the cookie into the session.
+--
+-- Note also that 'getUserAccessTokenFromFbCookie' may return
+-- 'Left' even tough the user is properly logged in.  When you
+-- force authentication via 'facebookForceLoginR' (e.g., via
+-- 'requireAuth'/'requireAuthId') we use the server-side flow
+-- which will not set the cookie until at least the FB JS SDK
+-- runs on the user-agent, sets the cookie and another request is
+-- sent to our servers.
+--
+-- For the reason stated on the previous paragraph, you should
+-- not use this function on 'getAuthId'.  Instead, you should use
+-- 'extractCredsAccessToken'.
 getUserAccessTokenFromFbCookie ::
   YesodAuthFbClientSide master =>
   GHandler sub master (Either String FB.UserAccessToken)
