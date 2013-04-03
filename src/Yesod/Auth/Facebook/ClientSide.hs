@@ -23,6 +23,9 @@ module Yesod.Auth.Facebook.ClientSide
       -- * Useful functions
     , serveChannelFile
     , defaultFbInitOpts
+
+      -- * Access tokens
+    , extractCredsAccessToken
     , getUserAccessToken
 
       -- * Advanced
@@ -422,8 +425,38 @@ authFacebookClientSide =
 -- | Create an @yesod-auth@'s 'Creds' for a given
 -- @'FB.UserAccessToken'@.
 createCreds :: FB.UserAccessToken -> Creds m
-createCreds (FB.UserAccessToken (FB.Id userId) _ _) = Creds "fbcs" id_ []
-    where id_ = "http://graph.facebook.com/" `mappend` userId
+createCreds at@(FB.UserAccessToken (FB.Id userId) _ _) =
+  let id_ = "http://graph.facebook.com/" `mappend` userId
+  in Creds "fbcs" id_ (atToText at)
+
+
+-- | Get the user access token from a 'Creds' created by this
+-- backend.
+extractCredsAccessToken :: Creds m -> Maybe FB.UserAccessToken
+extractCredsAccessToken (Creds "fbcs" _ extra) = textToAt extra
+extractCredsAccessToken _                      = Nothing
+
+
+-- | Convert user access token to @[(Text, Text)]@.
+--
+-- @
+-- textToAt . atToText === Just
+-- @
+atToText :: FB.UserAccessToken -> [(Text, Text)]
+atToText (FB.UserAccessToken userId data_ expires) =
+  [ ("at_id",      FB.idCode userId)
+  , ("at_data",    data_)
+  , ("at_expires", T.pack (show expires)) ]
+
+
+-- | See 'atToText'.
+textToAt :: [(Text, Text)] -> Maybe FB.UserAccessToken
+textToAt texts = do
+  at_id      <- lookup "at_id"      texts
+  at_data    <- lookup "at_data"    texts
+  at_expires <- lookup "at_expires" texts
+  [(expires, "")] <- return $ readsPrec 0 (T.unpack at_expires)
+  return $ FB.UserAccessToken (FB.Id at_id) at_data expires
 
 
 -- | Cookie name with the signed request for the given credentials.
