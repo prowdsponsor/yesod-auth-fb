@@ -84,10 +84,11 @@ facebookJSSDK :: YesodAuthFbClientSide master =>
                  (Route Auth -> Route master)
               -> GWidget sub master ()
 facebookJSSDK toMaster = do
-  (lang, fbInitOptsList, muid) <-
-    lift $ (,,) <$> getFbLanguage
-                <*> getFbInitOpts
-                <*> maybeAuthId
+  (lang, fbInitOptsList, muid, ur) <-
+    lift $ (,,,) <$> getFbLanguage
+                 <*> getFbInitOpts
+                 <*> maybeAuthId
+                 <*> getUrlRender
   let loggedIn = maybe False (const True) muid
       loginRoute  = toMaster $ fbcsR ["login"]
       logoutRoute = toMaster $ LogoutR
@@ -136,6 +137,17 @@ facebookJSSDK toMaster = do
         }
       });
     }
+
+    // Logout function
+    window.$$yfblogout = function () {
+      FB.getLoginStatus(function(response) {
+        if (response.status !== 'connected' ||
+            FB.logout(function () {}) === undefined) {
+          window.location.href = #{A.toJSON (ur (toMaster LogoutR))}
+        }
+      });
+      return (function () {});
+    };
    |]
 
 
@@ -185,21 +197,20 @@ joinPermissions = T.intercalate "," . map FB.unPermission
 
 
 -- | JavaScript function that should be called in order to logout
--- the user.  You could splice this into a @onclick@ event, for
--- example:
+-- the user.  You could splice the result of this widget into a
+-- @onclick@ event, for example:
 --
 -- @
 --   \<a href=\"\#\" onclick=\"\#{facebookLogout}\"\>
 --     Logout
 -- @
 --
--- You should not call this function if the user is not logged
--- in.
---
--- This is only a helper around Facebook JS SDK's @FB.logout()@,
--- you may call that function directly if you prefer.
+-- This function used to be just a helper around Facebook JS
+-- SDK's @FB.logout()@.  However, now it performs a check to see
+-- if the user is logged via FB and redirects to @yesod-auth@'s
+-- normal 'LogoutR' route if not.
 facebookLogout :: JavaScriptCall
-facebookLogout = "FB.logout(function () {})"
+facebookLogout = "window.$$yfblogout()"
 
 
 -- | A JavaScript function call.
