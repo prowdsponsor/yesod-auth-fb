@@ -34,17 +34,14 @@ module Yesod.Auth.Facebook.ClientSide
 
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad (when)
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Error (ErrorT(..), throwError)
 import Data.ByteString (ByteString)
 import Data.Monoid (mappend, mempty)
 import Data.String (fromString)
 import Data.Text (Text)
 import Network.Wai (queryString)
-import System.Locale (defaultTimeLocale)
 import Text.Julius (JavascriptUrl, julius, rawJS)
 import Yesod.Auth
-import Yesod.Content
 import Yesod.Core
 import qualified Control.Exception.Lifted as E
 import qualified Data.Aeson as A
@@ -80,18 +77,19 @@ fbcsR = PluginR "fbcs"
 -- anywhere else on the body.  If you absolutely need to do so,
 -- avoid any elements placed with @position: relative@ or
 -- @position: absolute@.
-facebookJSSDK :: YesodAuthFbClientSide master =>
-                 (Route Auth -> Route master)
-              -> GWidget sub master ()
-facebookJSSDK toMaster = do
+facebookJSSDK :: YesodAuthFbClientSide site =>
+                 (Route Auth -> Route site)
+              -> WidgetT site IO ()
+facebookJSSDK toSite = do
   (lang, fbInitOptsList, muid, ur) <-
-    lift $ (,,,) <$> getFbLanguage
-                 <*> getFbInitOpts
-                 <*> maybeAuthId
-                 <*> getUrlRender
+    handlerToWidget $
+      (,,,) <$> getFbLanguage
+            <*> getFbInitOpts
+            <*> maybeAuthId
+            <*> getUrlRender
   let loggedIn = maybe False (const True) muid
-      loginRoute  = toMaster $ fbcsR ["login"]
-      logoutRoute = toMaster $ LogoutR
+      loginRoute  = toSite $ fbcsR ["login"]
+      logoutRoute = toSite $ LogoutR
       fbInitOpts  = A.object $ map (uncurry (A..=)) fbInitOptsList
   [whamlet|$newline never
     <div #fb-root>
@@ -143,7 +141,7 @@ facebookJSSDK toMaster = do
       FB.getLoginStatus(function(response) {
         if (response.status !== 'connected' ||
             FB.logout(function () {}) === undefined) {
-          window.location.href = #{A.toJSON (ur (toMaster LogoutR))}
+          window.location.href = #{A.toJSON (ur (toSite LogoutR))}
         }
       });
       return (function () {});
@@ -225,7 +223,7 @@ type JavaScriptCall = Text
 --
 -- Minimal complete definition: 'getFbChannelFile'.  (We
 -- recommend implementing 'getFbLanguage' as well.)
-class (YesodAuth master, YF.YesodFacebook master) => YesodAuthFbClientSide master where
+class (YesodAuth site, YF.YesodFacebook site) => YesodAuthFbClientSide site where
   -- | A route that serves Facebook's channel file in the /same/
   -- /subdomain/ as the current request's subdomain.
   --
@@ -234,7 +232,7 @@ class (YesodAuth master, YF.YesodFacebook master) => YesodAuthFbClientSide maste
   -- is 'ChannelFileR', then you just need:
   --
   -- @
-  --   getChannelFileR :: GHandler sub master ChooseRep
+  --   getChannelFileR :: HandlerT site IO ChooseRep
   --   getChannelFileR = serveChannelFile
   -- @
   --
@@ -249,8 +247,8 @@ class (YesodAuth master, YF.YesodFacebook master) => YesodAuthFbClientSide maste
   -- have a channel file for each subdomain, otherwise your site
   -- won't work on old Internet Explorer versions (and maybe even
   -- on other browsers as well).  That's why 'getFbChannelFile'
-  -- lives inside 'GHandler'.
-  getFbChannelFile :: GHandler sub master (Route master)
+  -- lives inside 'HandlerT'.
+  getFbChannelFile :: HandlerT site IO (Route site)
                       -- ^ Return channel file in the /same/
                       -- /subdomain/ as the current route.
 
@@ -283,7 +281,7 @@ class (YesodAuth master, YF.YesodFacebook master) => YesodAuthFbClientSide maste
   -- /guarantees/ that all Facebook messages will be in the same
   -- language as the rest of your site (even if Facebook support
   -- a language that you don't).
-  getFbLanguage :: GHandler sub master Text
+  getFbLanguage :: HandlerT site IO Text
   getFbLanguage = return "en_US"
 
   -- | /(Optional)/ Options that should be given to @FB.init()@.
@@ -300,13 +298,13 @@ class (YesodAuth master, YF.YesodFacebook master) => YesodAuthFbClientSide maste
   --
   -- However, if you know what you're doing you're free to
   -- override any or all values returned by 'defaultFbInitOpts'.
-  getFbInitOpts :: GHandler sub master [(Text, A.Value)]
+  getFbInitOpts :: HandlerT site IO [(Text, A.Value)]
   getFbInitOpts = defaultFbInitOpts
 
   -- | /(Optional)/ Arbitrary JavaScript that will be called on
   -- Facebook's JS SDK's @fbAsyncInit@ (i.e. as soon as their SDK
   -- is loaded).
-  fbAsyncInitJs :: JavascriptUrl (Route master)
+  fbAsyncInitJs :: JavascriptUrl (Route site)
   fbAsyncInitJs = const mempty
 
 
@@ -320,8 +318,8 @@ class (YesodAuth master, YF.YesodFacebook master) => YesodAuthFbClientSide maste
 --  this module won't work /at all/ without it.
 --
 --  [@status@] To @True@, since this usually is what you want.
-defaultFbInitOpts :: YesodAuthFbClientSide master =>
-                     GHandler sub master [(Text, A.Value)]
+defaultFbInitOpts :: YesodAuthFbClientSide site =>
+                     HandlerT site IO [(Text, A.Value)]
 defaultFbInitOpts = do
   ur <- getUrlRender
   creds <- YF.getFbCredentials
@@ -339,18 +337,13 @@ defaultFbInitOpts = do
 -- Note that we set an expire time in the far future, so you
 -- won't be able to re-use this route again.  No common users
 -- will see this route, so you may use anything.
-serveChannelFile :: GHandler sub master ChooseRep
+serveChannelFile :: HandlerT site IO TypedContent
 serveChannelFile = do
-  now <- liftIO TI.getCurrentTime
-  setHeader "Pragma" "public"
-  setHeader "Cache-Control" maxAge
-  setHeader "Expires" (T.pack $ expires now)
-  return $ chooseRep ("text/html" :: ContentType, channelFileContent)
+  addHeader "Pragma" "public"
+  cacheSeconds oneYearSecs
+  neverExpires
+  selectRep $ provideRepType "text/html" (return channelFileContent)
  where oneYearSecs = 60*60*24*365 :: Int
-       oneYearNDF  = fromIntegral oneYearSecs :: TI.NominalDiffTime
-       maxAge      = "max-age=" `T.append` T.pack (show oneYearSecs)
-       expires now = TI.formatTime defaultTimeLocale "%a, %d %b %Y %T GMT" $
-                     TI.addUTCTime oneYearNDF now
 
 
 -- | Channel file's content.  On the toplevel in order to have
@@ -365,37 +358,37 @@ channelFileContent = toContent val
 -- authentication flow.
 --
 -- You /MUST/ use 'facebookJSSDK' as its documentation states.
-authFacebookClientSide :: YesodAuthFbClientSide master
-                       => AuthPlugin master
+authFacebookClientSide :: YesodAuthFbClientSide site
+                       => AuthPlugin site
 authFacebookClientSide =
     AuthPlugin "fbcs" dispatch login
   where
-    dispatch :: YesodAuthFbClientSide master =>
-                Text -> [Text] -> GHandler Auth master ()
+    dispatch :: YesodAuthFbClientSide site =>
+                Text -> [Text] -> HandlerT Auth (HandlerT site IO) ()
     -- Login route used when successfully logging in.  Called via
     -- AJAX by JavaScript code on 'facebookJSSDK'.
     dispatch "GET" ["login"] = do
-      y <- getYesod
-      when (redirectToReferer y) setUltDestReferer
-      etoken <- getUserAccessTokenFromFbCookie
+      y <- lift getYesod
+      when (redirectToReferer y) (lift setUltDestReferer)
+      etoken <- lift getUserAccessTokenFromFbCookie
       case etoken of
-        Right token -> setCreds True (createCreds token)
+        Right token -> lift $ setCreds True (createCreds token)
         Left msg -> fail msg
 
     -- Login routes used to forcefully require the user to login.
     dispatch "GET" ["login", "go"] = dispatch "GET" ["login", "go", ""]
     dispatch "GET" ["login", "go", perms] = do
       -- Redirect the user to the server-side flow login url.
-      y  <- getYesod
+      y  <- lift getYesod
       ur <- getUrlRender
-      tm <- getRouteToMaster
-      when (redirectToReferer y) setUltDestReferer
-      let redirectTo = ur $ tm $ fbcsR ["login", "back"]
+      when (redirectToReferer y) (lift setUltDestReferer)
+      let redirectTo = ur $ fbcsR ["login", "back"]
           uncommas "" = []
           uncommas xs = case break (== ',') xs of
                           (x', ',':xs') -> x' : uncommas xs'
                           (x', _)       -> [x']
-      url <- YF.runYesodFbT $
+      url <- lift $
+             YF.runYesodFbT $
              FB.getUserAccessTokenStep1 redirectTo $
                map fromString $ uncommas $ T.unpack perms
       redirect url
@@ -407,20 +400,21 @@ authFacebookClientSide =
       -- flimsy and sometimes the user landed on a blank page due
       -- to race conditions.
       ur <- getUrlRender
-      tm <- getRouteToMaster
       query <- queryString <$> waiRequest
-      let proceedUrl = ur $ tm $ fbcsR ["login", "back"]
+      let proceedUrl = ur $ fbcsR ["login", "back"]
           query' = [(a,b) | (a, Just b) <- query]
-      token <- YF.runYesodFbT $ FB.getUserAccessTokenStep2 proceedUrl query'
-      setCreds True (createCreds token)
+      token <- lift $
+               YF.runYesodFbT $
+               FB.getUserAccessTokenStep2 proceedUrl query'
+      lift $ setCreds True (createCreds token)
 
     -- Everything else gives 404
     dispatch _ _ = notFound
 
     -- Small widget for multiple login websites.
-    login :: YesodAuth master =>
-             (Route Auth -> Route master)
-          -> GWidget sub master ()
+    login :: YesodAuth site =>
+             (Route Auth -> Route site)
+          -> WidgetT site IO ()
     login _ = [whamlet|$newline never
                  <p>
                    <a href="#" onclick="#{facebookLogin perms}">
@@ -499,8 +493,8 @@ signedRequestCookieName = T.append "fbsr_" . FB.appId
 -- not use this function on 'getAuthId'.  Instead, you should use
 -- 'extractCredsAccessToken'.
 getUserAccessTokenFromFbCookie ::
-  YesodAuthFbClientSide master =>
-  GHandler sub master (Either String FB.UserAccessToken)
+  YesodAuthFbClientSide site =>
+  HandlerT site IO (Either String FB.UserAccessToken)
 getUserAccessTokenFromFbCookie =
   runErrorT $ do
     creds <- lift YF.getFbCredentials
