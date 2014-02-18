@@ -507,8 +507,9 @@ getUserAccessTokenFromFbCookie =
                 <*> parsed A..:? "user_id"
                 <*> parsed A..:? "oauth_token"
                 <*> parsed A..:? "expires") of
-      Right (Just code, _, _, _) -> do
+      Right (Just codeT, _, _, _) -> do
         -- We have to exchange the code for the access token.
+        let code = TE.encodeUtf8 codeT
         moldCode <- lift $ lookupSessionBS sessionCode
         case moldCode of
           Just code' | code == code' -> lift $ do
