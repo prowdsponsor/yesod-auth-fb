@@ -45,6 +45,7 @@ Library
                  , yesod-core   == 1.2.*
                  , yesod-auth   == 1.2.*
                  , hamlet
+                 , shakespeare
                  , shakespeare-js >= 1.0.2
                  , wai
                  , http-conduit >= 1.9
