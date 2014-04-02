@@ -56,7 +56,7 @@ authFacebook perms = AuthPlugin "fb" dispatch login
     proceedR = PluginR "fb" ["proceed"]
 
     dispatch :: (YesodAuth site, YF.YesodFacebook site) =>
-                Text -> [Text] -> HandlerT Auth (HandlerT site IO) ()
+                Text -> [Text] -> HandlerT Auth (HandlerT site IO) TypedContent
     -- Redirect the user to Facebook.
     dispatch "GET" ["login"] = do
         ur <- getUrlRender
@@ -73,7 +73,7 @@ authFacebook perms = AuthPlugin "fb" dispatch login
         lift $ do
           token <- YF.runYesodFbT $ FB.getUserAccessTokenStep2 proceedUrl query'
           setUserAccessToken token
-          setCreds True (createCreds token)
+          setCredsRedirect (createCreds token)
     -- Logout the user from our site and from Facebook.
     dispatch "GET" ["logout"] = do
         y      <- lift getYesod

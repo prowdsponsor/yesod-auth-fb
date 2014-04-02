@@ -364,7 +364,7 @@ authFacebookClientSide =
     AuthPlugin "fbcs" dispatch login
   where
     dispatch :: YesodAuthFbClientSide site =>
-                Text -> [Text] -> HandlerT Auth (HandlerT site IO) ()
+                Text -> [Text] -> HandlerT Auth (HandlerT site IO) TypedContent
     -- Login route used when successfully logging in.  Called via
     -- AJAX by JavaScript code on 'facebookJSSDK'.
     dispatch "GET" ["login"] = do
@@ -372,7 +372,7 @@ authFacebookClientSide =
       when (redirectToReferer y) (lift setUltDestReferer)
       etoken <- lift getUserAccessTokenFromFbCookie
       case etoken of
-        Right token -> lift $ setCreds True (createCreds token)
+        Right token -> lift $ setCredsRedirect (createCreds token)
         Left msg -> fail msg
 
     -- Login routes used to forcefully require the user to login.
@@ -406,7 +406,7 @@ authFacebookClientSide =
       token <- lift $
                YF.runYesodFbT $
                FB.getUserAccessTokenStep2 proceedUrl query'
-      lift $ setCreds True (createCreds token)
+      lift $ setCredsRedirect (createCreds token)
 
     -- Everything else gives 404
     dispatch _ _ = notFound
