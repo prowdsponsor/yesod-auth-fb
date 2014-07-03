@@ -1,7 +1,7 @@
 Name:                yesod-auth-fb
 Version:             1.6.2.1
 Synopsis:            Authentication backend for Yesod using Facebook.
-Homepage:            https://github.com/meteficha/yesod-auth-fb
+Homepage:            https://github.com/prowdsponsor/yesod-auth-fb
 License:             BSD3
 License-file:        LICENSE
 Author:              Felipe Lessa, Michael Snoyman
@@ -35,7 +35,7 @@ Description:
 
 Source-repository head
   type:     git
-  location: git://github.com/meteficha/yesod-auth-fb.git
+  location: git://github.com/prowdsponsor/yesod-auth-fb.git
 
 Library
   hs-source-dirs: src
